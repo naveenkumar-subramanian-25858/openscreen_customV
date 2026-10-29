@@ -113,6 +113,8 @@ struct PickedSource {
 	/// Global frame (points, top-left origin) of what was picked, for cursor mapping.
 	let frame: CGRect
 	let displayId: CGDirectDisplayID?
+	/// Set for a window pick, so its frame can be read again when a take starts.
+	let windowId: CGWindowID?
 }
 
 @available(macOS 13.0, *)
@@ -672,8 +674,25 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 			filter: picked.filter,
 			width: size.width,
 			height: size.height,
-			captureFrame: picked.frame
+			captureFrame: currentWindowFrame(of: picked.windowId) ?? picked.frame
 		)
+	}
+
+	/// The window's frame now, from the window server (readable without the Screen Recording
+	/// grant a picked take runs without). The frame taken when the window was picked goes stale
+	/// if the window moves or resizes before Record, while the stream's size is read live; the
+	/// cursor was then mapped against a frame the video no longer has.
+	private func currentWindowFrame(of windowId: CGWindowID?) -> CGRect? {
+		guard let windowId,
+			let entries = CGWindowListCopyWindowInfo([.optionIncludingWindow], windowId)
+				as? [[String: Any]],
+			let bounds = entries.first?[kCGWindowBounds as String] as? NSDictionary,
+			let frame = CGRect(dictionaryRepresentation: bounds),
+			frame.width > 0, frame.height > 0
+		else {
+			return nil
+		}
+		return frame
 	}
 
 	/// The app's own windows (HUD, notes) plus the system ones a demo never wants.

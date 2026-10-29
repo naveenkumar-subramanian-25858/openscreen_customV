@@ -1146,6 +1146,12 @@ function selectedSourceFromPick(
 function getSelectedSourceBounds() {
 	// A pick from Apple's picker carries its own frame; there is no desktopCapturer
 	// display to look up for it.
+	// While a take runs, the frame the helper reported at its start is the one the video has;
+	// the pick's own frame was read when the source was chosen and goes stale if the window
+	// moves or resizes before Record.
+	if (nativeMacCaptureProcess && activeMacCaptureBounds && !croppedAtCaptureVideoPath) {
+		return activeMacCaptureBounds;
+	}
 	if (isMacPickerSourceId(selectedSource?.id)) {
 		const pick = macPickerSession?.getSelection();
 		if (pick) {
