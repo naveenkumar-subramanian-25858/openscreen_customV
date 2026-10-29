@@ -92,6 +92,7 @@
 		"openProject": "Открыть проект",
 		"newProject": "Новый проект",
 		"saveProject": "Сохранить проект",
+		"saveProjectAs": "Save project as…",
 		"unsaved": "Не сохранено",
 		"saved": "Сохранено",
 		"switchToLightTheme": "Переключить на светлую тему",
@@ -215,7 +216,10 @@
 		"failedToWriteFile": "Не удалось записать файл",
 		"qualityUpscaleWarning": "Апскейл",
 		"exportedVideoOf": "видео экспортировано за",
-		"nothingToExport": "Нечего экспортировать — таймлайн пуст."
+		"nothingToExport": "Нечего экспортировать — таймлайн пуст.",
+		"exportSeparateClicks": "Video + click sounds (2 files)",
+		"exportSeparateClicksTip": "Save the video without the click sound mixed in, plus the mouse clicks as a separate WAV file next to it.",
+		"clickSoundsFailed": "The video was saved, but the click sounds file could not be written."
 	},
 	"inspector": {
 		"resetFocusPoint": "Сбросить точку фокуса",

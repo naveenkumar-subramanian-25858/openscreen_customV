@@ -34,6 +34,7 @@ export interface TopBarActions {
 	openProject: () => void;
 	newProject: () => void;
 	save: () => void;
+	saveAs: () => void;
 	export: () => void;
 	openSettings: () => void;
 	renameProject: (title: string) => void;
@@ -417,6 +418,15 @@ function AppMenu({ actions }: { actions: TopBarActions }) {
 					>
 						<Save size={15} />
 						{tEditor("topbar.saveProject")}
+					</button>
+					<button
+						type="button"
+						role="menuitem"
+						className={styles.appMenuRow}
+						onClick={run(actions.saveAs)}
+					>
+						<Save size={15} />
+						{tEditor("topbar.saveProjectAs")}
 					</button>
 					<div className={styles.appMenuSep} aria-hidden />
 					<button

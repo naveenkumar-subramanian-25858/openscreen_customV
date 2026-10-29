@@ -351,7 +351,13 @@
 		"done": "Done",
 		"ratio": "Ratio",
 		"cropVideo": "Crop Video",
-		"lockAspectRatio": "Lock aspect ratio"
+		"lockAspectRatio": "Lock aspect ratio",
+		"customRatio": "Custom ratio",
+		"customRatioWidth": "Custom ratio width",
+		"customRatioHeight": "Custom ratio height",
+		"customRatioApply": "Use ratio",
+		"customRatioActive": "Crop locked to {{w}}:{{h}}",
+		"customRatioHint": "Type any W:H to crop to it"
 	},
 	"zoom": {
 		"position": {

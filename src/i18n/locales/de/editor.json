@@ -92,6 +92,7 @@
 		"openProject": "Projekt öffnen",
 		"newProject": "Neues Projekt",
 		"saveProject": "Projekt speichern",
+		"saveProjectAs": "Save project as…",
 		"unsaved": "Nicht gespeichert",
 		"saved": "Gespeichert",
 		"switchToLightTheme": "Zum hellen Design wechseln",
@@ -215,7 +216,10 @@
 		"exportFailed": "Export fehlgeschlagen",
 		"failedToWriteFile": "Datei konnte nicht geschrieben werden",
 		"qualityUpscaleWarning": "Hochskalierung",
-		"nothingToExport": "Nichts zu exportieren — die Timeline ist leer."
+		"nothingToExport": "Nichts zu exportieren — die Timeline ist leer.",
+		"exportSeparateClicks": "Video + click sounds (2 files)",
+		"exportSeparateClicksTip": "Save the video without the click sound mixed in, plus the mouse clicks as a separate WAV file next to it.",
+		"clickSoundsFailed": "The video was saved, but the click sounds file could not be written."
 	},
 	"inspector": {
 		"resetFocusPoint": "Fokuspunkt zurücksetzen",

@@ -160,7 +160,8 @@ export function getMacPermissions(): MacPermissions {
 
 let permissionsWindow: BrowserWindow | null = null;
 
-export function showPermissionsWindow(): void {
+/** `onClosed` runs once the user has closed the window, after the grants are noted. */
+export function showPermissionsWindow(onClosed?: () => void): void {
 	if (process.platform !== "darwin") {
 		return;
 	}
@@ -176,7 +177,8 @@ export function showPermissionsWindow(): void {
 		void permissions
 			.read()
 			.then((snapshot) => permissions.noteWindowClosed(snapshot))
-			.catch(() => undefined);
+			.catch(() => undefined)
+			.finally(() => onClosed?.());
 	});
 }
 

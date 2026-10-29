@@ -30,6 +30,9 @@ export function wouldUpscale(output: Dims, source: Dims): boolean {
 	return Math.min(output.width / source.width, output.height / source.height) > 1;
 }
 
+/** How far a frame's aspect may sit from the footage's own and still count as the same shape. */
+const SAME_SHAPE_TOLERANCE = 0.005;
+
 const MEDIUM_SHORT_SIDE = 720;
 const HIGH_SHORT_SIDE = 1080;
 
@@ -78,6 +81,18 @@ function calculateSourceDimensions(
 ) {
 	const sourceLongDim = Math.max(sourceWidth, sourceHeight);
 
+	// A frame whose shape is the footage's own, give or take a rounding error (an Auto frame is
+	// the screen's aspect plus a sliver of padding), is exported AT the footage's size. Searching
+	// downward for a width whose height lands exactly on the ratio is what turned a 3060x1800 crop
+	// into 2954x1738: nothing was asked for but the crop's own size.
+	if (
+		sourceWidth > 0 &&
+		sourceHeight > 0 &&
+		Math.abs(sourceWidth / sourceHeight / aspectRatioValue - 1) < SAME_SHAPE_TOLERANCE
+	) {
+		return { width: atLeastEven(sourceWidth), height: atLeastEven(sourceHeight) };
+	}
+
 	if (aspectRatioValue === 1) {
 		const baseDimension = even(Math.min(sourceWidth, sourceHeight));
 		return {
@@ -116,12 +131,14 @@ function calculateSourceDimensions(
 /**
  * Bits the encoder may spend per pixel of each frame. Measured with NVENC on scrolled text under
  * animated zooms, against the same export with no cap: at 1080p60 the quality climbs steeply up
- * to 16-20 Mb/s and flattens after, and 0.15 sits on that knee (18.7 Mb/s; 9.3 at 1080p30).
+ * to 16-20 Mb/s and flattens after, and 0.15 sits on that knee (18.7 Mb/s; 9.3 at 1080p30). The default is 0.25 (31 Mb/s at
+ * 1080p60): past the knee, deliberately, because the exports are re-watched and re-uploaded and
+ * every platform re-encodes them again.
  * Equal quality took 1.6-1.9x the bits at 60 fps as at 30, so scaling linearly with the frame
  * rate is right, if a little generous. It is a ceiling more than a spend: NVENC and AMF run VBR
  * and a still screen costs far less.
  */
-const BITS_PER_PIXEL = 0.15;
+const BITS_PER_PIXEL = 0.25;
 /** Floor for tiny outputs, the native pipeline's own. */
 const MIN_BITRATE = 2_000_000;
 

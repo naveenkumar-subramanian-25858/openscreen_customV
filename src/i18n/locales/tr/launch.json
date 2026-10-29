@@ -34,7 +34,8 @@
 			"increaseFontSize": "Yazı tipi boyutunu büyüt",
 			"mirror": "Yatay aynala",
 			"mirrorTip": "Metni aynalar, böylece aynada okunabilir"
-		}
+		},
+		"recordRegion": "Record a region of the screen"
 	},
 	"audio": {
 		"systemAudio": "Sistem sesi",
@@ -153,5 +154,14 @@
 			"screenRequired": "Kayıt için ekran kaydı gereklidir.",
 			"ready": "Her şey hazır."
 		}
+	},
+	"regionSelector": {
+		"hint": "Drag to select the area to record. Esc to cancel.",
+		"ratioWidth": "Ratio width",
+		"ratioHeight": "Ratio height",
+		"lockRatio": "Lock aspect ratio",
+		"width": "Width in pixels",
+		"height": "Height in pixels",
+		"confirm": "Record this area"
 	}
 }

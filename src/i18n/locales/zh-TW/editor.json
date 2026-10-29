@@ -92,6 +92,7 @@
 		"openProject": "開啟專案",
 		"newProject": "新專案",
 		"saveProject": "儲存專案",
+		"saveProjectAs": "Save project as…",
 		"unsaved": "未儲存",
 		"saved": "已儲存",
 		"switchToLightTheme": "切換至淺色主題",
@@ -215,7 +216,10 @@
 		"failedToWriteFile": "寫入檔案失敗",
 		"qualityUpscaleWarning": "放大",
 		"exportedVideoOf": "的影片已匯出，耗時",
-		"nothingToExport": "沒有可匯出的內容 — 時間軸為空。"
+		"nothingToExport": "沒有可匯出的內容 — 時間軸為空。",
+		"exportSeparateClicks": "Video + click sounds (2 files)",
+		"exportSeparateClicksTip": "Save the video without the click sound mixed in, plus the mouse clicks as a separate WAV file next to it.",
+		"clickSoundsFailed": "The video was saved, but the click sounds file could not be written."
 	},
 	"inspector": {
 		"resetFocusPoint": "重設焦點",

@@ -34,7 +34,8 @@
 			"increaseFontSize": "Zvětšit písmo",
 			"mirror": "Zrcadlit vodorovně",
 			"mirrorTip": "Otočí text zrcadlově, aby se dal číst v zrcadle"
-		}
+		},
+		"recordRegion": "Record a region of the screen"
 	},
 	"audio": {
 		"systemAudio": "Systémový zvuk",
@@ -153,5 +154,14 @@
 			"screenRequired": "K nahrávání je potřeba nahrávání obrazovky.",
 			"ready": "Vše je připraveno."
 		}
+	},
+	"regionSelector": {
+		"hint": "Drag to select the area to record. Esc to cancel.",
+		"ratioWidth": "Ratio width",
+		"ratioHeight": "Ratio height",
+		"lockRatio": "Lock aspect ratio",
+		"width": "Width in pixels",
+		"height": "Height in pixels",
+		"confirm": "Record this area"
 	}
 }

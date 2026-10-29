@@ -179,6 +179,12 @@ function createShimElectronAPI() {
 			return Promise.resolve(source);
 		},
 		getSelectedSource: () => Promise.resolve(shimSelectedSource),
+		// Region capture needs a real display to cover, which browser mode does not have.
+		openRegionSelector: () => Promise.resolve({ opened: false, reason: "unsupported-platform" }),
+		getRegionSelectorContext: () => Promise.resolve(null),
+		confirmRegion: () => Promise.resolve(null),
+		cancelRegion: () => Promise.resolve(),
+		onRegionSelectorLocked: () => () => undefined,
 		onSelectedSourceChanged: (callback: (source: ShimDesktopSource | null) => void) => {
 			shimSelectedSourceListeners.add(callback);
 			return () => shimSelectedSourceListeners.delete(callback);

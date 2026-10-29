@@ -1,4 +1,10 @@
 {
+	"regionPermission": {
+		"title": "Screen Recording permission needed",
+		"message": "Recording a region needs Screen Recording access. Turn on Openscreen in System Settings > Privacy & Security > Screen & System Audio Recording, then reopen Openscreen and choose Region again.",
+		"openSettings": "Open System Settings",
+		"cancel": "Cancel"
+	},
 	"export": {
 		"complete": "匯出完成",
 		"yourFormatReady": "您的 {{format}} 已準備就緒",

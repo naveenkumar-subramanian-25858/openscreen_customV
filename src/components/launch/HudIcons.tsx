@@ -76,6 +76,15 @@ export function SourceIcon({ className }: { className?: string }) {
 	);
 }
 
+export function RegionIcon({ className }: { className?: string }) {
+	return (
+		<svg {...HUD_SVG_PROPS} className={className} aria-hidden="true">
+			<path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16" />
+			<rect x="8.5" y="8.5" width="7" height="7" rx="1" strokeDasharray="2 2" />
+		</svg>
+	);
+}
+
 export function VolumeIcon({ muted, className }: { muted: boolean; className?: string }) {
 	return (
 		<svg {...HUD_SVG_PROPS} className={className} aria-hidden="true">

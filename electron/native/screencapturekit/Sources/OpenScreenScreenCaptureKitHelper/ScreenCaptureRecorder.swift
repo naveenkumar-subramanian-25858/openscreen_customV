@@ -19,6 +19,8 @@ struct RecordingRequest: Decodable {
 		let displayId: UInt32?
 		let windowId: UInt32?
 		let bounds: Rectangle?
+		/// Display captures: the part to record, 0...1 fractions of the display, top-left origin.
+		let cropRegion: Rectangle?
 	}
 
 	struct Video: Decodable {
@@ -117,11 +119,13 @@ struct PickedSource {
 final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 	private struct CaptureTarget {
 		let filter: SCContentFilter
-		let width: Int
-		let height: Int
+		var width: Int
+		var height: Int
 		// Global frame (points, top-left origin) of the captured region. Used by the
 		// renderer to normalize cursor positions into the captured window's space.
-		let captureFrame: CGRect
+		var captureFrame: CGRect
+		/// Display crop for a region take: the stream records only this rect (points).
+		var sourceRect: CGRect? = nil
 	}
 
 	private let request: RecordingRequest
@@ -161,6 +165,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 	private var outputWidth = 1920
 	private var outputHeight = 1080
 	private var captureFrame = CGRect.zero
+	private var sourceRect: CGRect?
 	private let microphoneOutputTypeRawValue = 2
 	private let hostClock = CMClockGetHostTimeClock()
 	private let picked: PickedSource?
@@ -210,7 +215,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 	func start() async throws {
 		try ensureRequestedPermissions(screen: picked == nil)
 
-		let target: CaptureTarget
+		var target: CaptureTarget
 		var audioStream: SCStream?
 		if let picked {
 			target = makeCaptureTarget(picked: picked)
@@ -236,8 +241,10 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 				}
 			}
 		}
+		applyRegionCrop(to: &target)
 		outputWidth = target.width
 		outputHeight = target.height
+		sourceRect = target.sourceRect
 		captureFrame = target.captureFrame
 		let configuration = makeStreamConfiguration()
 		let stream = SCStream(filter: target.filter, configuration: configuration, delegate: self)
@@ -613,6 +620,48 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		]
 	}
 
+	/// A region take records only its part of the display, at the display's native pixel density:
+	/// ScreenCaptureKit crops (`sourceRect`) and the buffer is the region's own pixel size, so
+	/// nothing is recorded full-screen and cropped later at lower quality.
+	private func applyRegionCrop(to target: inout CaptureTarget) {
+		guard request.source.type == "display", let crop = request.source.cropRegion else {
+			return
+		}
+		let contentSize: CGSize
+		let scale: CGFloat
+		if #available(macOS 14.0, *) {
+			contentSize = target.filter.contentRect.size
+			scale = CGFloat(target.filter.pointPixelScale)
+		} else {
+			contentSize = target.captureFrame.size
+			scale = CGFloat(Self.scaleFactor(for: request.source.displayId ?? CGMainDisplayID()))
+		}
+		guard
+			let region = regionCaptureRect(
+				contentSize: contentSize,
+				pointPixelScale: scale,
+				crop: CGRect(x: crop.x, y: crop.y, width: crop.width, height: crop.height)
+			)
+		else {
+			return
+		}
+		target.sourceRect = region.rect
+		target.width = region.width
+		target.height = region.height
+		// The cursor is normalised against the frame that was recorded, so it is the region's.
+		target.captureFrame = CGRect(
+			x: target.captureFrame.minX + region.rect.minX,
+			y: target.captureFrame.minY + region.rect.minY,
+			width: region.rect.width,
+			height: region.rect.height
+		)
+		emit([
+			"event": "region-crop",
+			"width": region.width,
+			"height": region.height,
+		])
+	}
+
 	private func makeCaptureTarget(picked: PickedSource) -> CaptureTarget {
 		let size = captureSize(
 			for: picked.filter,
@@ -767,6 +816,9 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		let configuration = SCStreamConfiguration()
 		configuration.width = outputWidth
 		configuration.height = outputHeight
+		if let sourceRect {
+			configuration.sourceRect = sourceRect
+		}
 		// Belt and braces for the defect `captureOutputSize` exists to prevent. Left at its
 		// default of `false`, ScreenCaptureKit "only scales down" (SDK header), so any frame
 		// smaller than the buffer is drawn at native size in a corner and the rest stays
@@ -861,6 +913,9 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 				AVVideoAverageBitRateKey: request.video.bitrate
 					?? defaultVideoBitrate(width: outputWidth, height: outputHeight, fps: request.video.fps),
 				AVVideoExpectedSourceFrameRateKey: request.video.fps,
+				// High profile: CABAC and 8x8 transforms, the better tool set for text at the
+				// same bitrate. Baseline/Main is what the encoder may fall back to unasked.
+				AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
 				// Without this the encoder defaults to B-frames, and a reordered
 				// stream needs a composition offset per sample. AVAssetWriter emits
 				// those in a version 0 `trun`, where ISO/IEC 14496-12 8.8.8.2 defines

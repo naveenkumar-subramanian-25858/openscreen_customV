@@ -870,6 +870,16 @@ export function replaceTimeline(
 	const duration = primaryAssetDuration(document);
 	const plan = planTimelineReplacement(document, intervals);
 	const clipById = new Map(document.timeline.clips.map((clip) => [clip.id, clip]));
+	// A crop frames the footage, not one clip. A rebuild mints clips (a split's second half
+	// has no ancestor), and they must not come back uncropped: carry over the crop when the
+	// asset's clips all share one.
+	const assetCrops = document.timeline.clips
+		.filter((clip) => clip.assetId === assetId)
+		.map((clip) => JSON.stringify(clip.cropRegion ?? null));
+	const sharedCrop =
+		assetCrops.length > 0 && assetCrops.every((crop) => crop === assetCrops[0])
+			? (document.timeline.clips.find((clip) => clip.assetId === assetId)?.cropRegion ?? undefined)
+			: undefined;
 
 	let cursor = 0;
 	const clips: AxcutClip[] = plan.slots.map((slot, index) => {
@@ -894,6 +904,9 @@ export function replaceTimeline(
 				collectWordRefs(document.transcript, slot.interval.startSec, slot.interval.endSec),
 			origin: existing?.origin ?? origin,
 			reason: existing?.reason ?? reason,
+			...((existing?.cropRegion ?? sharedCrop)
+				? { cropRegion: existing?.cropRegion ?? sharedCrop }
+				: {}),
 		};
 	});
 

@@ -67,7 +67,11 @@ import {
 	type UnsavedChoice,
 } from "./Modals";
 import { Preview } from "./Preview";
-import { importPendingRecording, maybeSaveFreshRecordingAutoZooms } from "./recordingImport";
+import {
+	applyPendingCaptureRegion,
+	importPendingRecording,
+	maybeSaveFreshRecordingAutoZooms,
+} from "./recordingImport";
 import { AddAudioLayerDialog } from "./v4/AddAudioLayerDialog";
 import v4 from "./v4/EditorShellV4.module.css";
 import { type EditorMode, EditorTopBar } from "./v4/EditorTopBar";
@@ -173,6 +177,18 @@ export async function runLoadedMetadataWrite(
 		// stops answering would hold this queue slot — and every edit behind it — for
 		// the life of the renderer. The abandoned write is safe to let go of.
 		await saveWithDeadline(state.saveDocument(next, { history: false }), deps.saveTimeoutMs);
+	}
+	// A region take is cropped to the area that was recorded the moment its clip exists.
+	// `history: false` for the same reason as the duration above: the editor did this, not the user.
+	const beforeCrop = useProjectStore.getState().document;
+	if (beforeCrop && beforeCrop.project.id === originatingProjectId) {
+		const cropped = applyPendingCaptureRegion(beforeCrop);
+		if (cropped !== beforeCrop) {
+			await saveWithDeadline(
+				useProjectStore.getState().saveDocument(cropped, { history: false }),
+				deps.saveTimeoutMs,
+			);
+		}
 	}
 	// Re-checked rather than assumed: the await above is exactly when a project
 	// switch lands, and the check inside the decision spoke only for the document as
@@ -873,12 +889,29 @@ export function NewEditorShell() {
 		if (await saveDocument(doc, { history: true })) toast.success("Project saved");
 	}, [saveDocument]);
 
+	// Save As: the editor keeps its project in the app's own store, so this saves there first
+	// and then writes a copy to a file the user picks (native dialog, `.openscreen`, atomic).
+	const handleSaveAs = useCallback(async () => {
+		const doc = useProjectStore.getState().document;
+		if (!doc) return;
+		if (!(await saveDocument(doc, { history: true }))) return;
+		try {
+			const result = await window.electronAPI?.saveProjectFile(doc, doc.project.title);
+			if (!result || result.canceled) return;
+			if (!result.success) throw new Error(result.error ?? result.message ?? "Save failed");
+			toast.success("Project saved", { description: result.path });
+		} catch (err) {
+			toast.error("Could not save project", {
+				description: err instanceof Error ? err.message : String(err),
+			});
+		}
+	}, [saveDocument]);
+
 	// Native File menu (electron/main.ts) → v4 actions. The menu is shown via
 	// Menu.setApplicationMenu and dispatches these IPC events; the old editor
 	// listened to them, but the v4 shell replaced it, leaving the File items
 	// dead. Wire them to the same handlers the top-bar buttons use so the
 	// File/Edit/View menu bar works again (the View items still use Electron roles).
-	// The v4 editor has no separate "Save As" location, so it maps to Save.
 	//
 	// Edit > Undo/Redo are here too, and not roles: on macOS the menu's Cmd+Z key
 	// equivalent is matched by AppKit before the key event reaches the renderer, so
@@ -891,14 +924,14 @@ export function NewEditorShell() {
 			api.onMenuNewProject?.(() => setNewProjectOpen(true)),
 			api.onMenuLoadProject?.(() => setOpenProjectOpen(true)),
 			api.onMenuSaveProject?.(() => void handleSave()),
-			api.onMenuSaveProjectAs?.(() => void handleSave()),
+			api.onMenuSaveProjectAs?.(() => void handleSaveAs()),
 			api.onMenuUndo?.(runUndo),
 			api.onMenuRedo?.(runRedo),
 		];
 		return () => {
 			for (const unsub of unsubscribers) unsub?.();
 		};
-	}, [handleSave, runUndo, runRedo]);
+	}, [handleSave, handleSaveAs, runUndo, runRedo]);
 
 	const handleRenameProject = useCallback(
 		async (title: string) => {
@@ -1251,9 +1284,9 @@ export function NewEditorShell() {
 			// happened to live in a context, so Z/T/C kept adding regions under Export (#434).
 			if (isModalOpen()) return;
 			const ctrl = e.ctrlKey || e.metaKey;
-			if (ctrl && e.key === "s") {
+			if (ctrl && e.key.toLowerCase() === "s") {
 				e.preventDefault();
-				void handleSave();
+				void (e.shiftKey ? handleSaveAs() : handleSave());
 				return;
 			}
 			if (ctrl && e.key === "n") {
@@ -1564,6 +1597,7 @@ export function NewEditorShell() {
 					openProject: () => setOpenProjectOpen(true),
 					newProject: () => setNewProjectOpen(true),
 					save: () => void handleSave(),
+					saveAs: () => void handleSaveAs(),
 					export: handleExport,
 					openSettings: handleOpenSettings,
 					renameProject: handleRenameProject,

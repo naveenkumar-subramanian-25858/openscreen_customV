@@ -351,7 +351,13 @@
 		"done": "완료",
 		"ratio": "비율",
 		"cropVideo": "비디오 자르기",
-		"lockAspectRatio": "화면 비율 고정"
+		"lockAspectRatio": "화면 비율 고정",
+		"customRatio": "Custom ratio",
+		"customRatioWidth": "Custom ratio width",
+		"customRatioHeight": "Custom ratio height",
+		"customRatioApply": "Use ratio",
+		"customRatioActive": "Crop locked to {{w}}:{{h}}",
+		"customRatioHint": "Type any W:H to crop to it"
 	},
 	"zoom": {
 		"position": {

@@ -92,6 +92,7 @@
 		"openProject": "打开项目",
 		"newProject": "新建项目",
 		"saveProject": "保存项目",
+		"saveProjectAs": "Save project as…",
 		"unsaved": "未保存",
 		"saved": "已保存",
 		"switchToLightTheme": "切换到浅色主题",
@@ -215,7 +216,10 @@
 		"failedToWriteFile": "写入文件失败",
 		"qualityUpscaleWarning": "放大",
 		"exportedVideoOf": "的视频已导出，用时",
-		"nothingToExport": "没有可导出的内容 — 时间轴为空。"
+		"nothingToExport": "没有可导出的内容 — 时间轴为空。",
+		"exportSeparateClicks": "Video + click sounds (2 files)",
+		"exportSeparateClicksTip": "Save the video without the click sound mixed in, plus the mouse clicks as a separate WAV file next to it.",
+		"clickSoundsFailed": "The video was saved, but the click sounds file could not be written."
 	},
 	"inspector": {
 		"resetFocusPoint": "重置焦点",

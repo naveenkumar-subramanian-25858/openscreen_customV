@@ -92,6 +92,7 @@
 		"openProject": "Ouvrir un projet",
 		"newProject": "Nouveau projet",
 		"saveProject": "Enregistrer le projet",
+		"saveProjectAs": "Save project as…",
 		"unsaved": "Non enregistré",
 		"saved": "Enregistré",
 		"switchToLightTheme": "Passer au thème clair",
@@ -215,7 +216,10 @@
 		"exportFailed": "Échec de l'export",
 		"failedToWriteFile": "Échec de l'écriture du fichier",
 		"qualityUpscaleWarning": "Upscaling",
-		"nothingToExport": "Rien à exporter — la timeline est vide."
+		"nothingToExport": "Rien à exporter — la timeline est vide.",
+		"exportSeparateClicks": "Video + click sounds (2 files)",
+		"exportSeparateClicksTip": "Save the video without the click sound mixed in, plus the mouse clicks as a separate WAV file next to it.",
+		"clickSoundsFailed": "The video was saved, but the click sounds file could not be written."
 	},
 	"inspector": {
 		"resetFocusPoint": "Réinitialiser le point de focus",

@@ -32,6 +32,7 @@ import {
 	HudNotice,
 	HudRecordButton,
 	HudRecordingControls,
+	HudRegionButton,
 	HudSettingsButton,
 	HudSourceButton,
 	HudStudioButton,
@@ -797,6 +798,12 @@ export function LaunchWindow() {
 		return { opened: false, reason: "electron-api-unavailable" };
 	}, []);
 
+	// Drag out an area of this display to record. A missing macOS permission is handled on
+	// the main side, as it is for the source button.
+	const openRegionSelector = useCallback(async () => {
+		await window.electronAPI?.openRegionSelector();
+	}, []);
+
 	const handleRecordButtonClick = useCallback(
 		(sourceSelectedOverride?: boolean) => {
 			if (saving) {
@@ -1241,6 +1248,14 @@ export function LaunchWindow() {
 								remembered={!hasSelectedSource && rememberedSourceName !== null}
 								disabled={controlsLocked}
 								onClick={openSourceSelector}
+							/>
+						)}
+						{!portalOwnsSource && !isLinuxHud && (
+							<HudRegionButton
+								label={t("tooltips.recordRegion")}
+								tooltip={t("tooltips.recordRegion")}
+								disabled={controlsLocked}
+								onClick={openRegionSelector}
 							/>
 						)}
 

@@ -92,6 +92,7 @@
 		"openProject": "Abrir projeto",
 		"newProject": "Novo projeto",
 		"saveProject": "Salvar projeto",
+		"saveProjectAs": "Save project as…",
 		"unsaved": "Não salvo",
 		"saved": "Salvo",
 		"switchToLightTheme": "Mudar para tema claro",
@@ -215,7 +216,10 @@
 		"failedToWriteFile": "Falha ao gravar o arquivo",
 		"qualityUpscaleWarning": "Upscaling",
 		"exportedVideoOf": "de vídeo exportado em",
-		"nothingToExport": "Nada para exportar — a linha do tempo está vazia."
+		"nothingToExport": "Nada para exportar — a linha do tempo está vazia.",
+		"exportSeparateClicks": "Video + click sounds (2 files)",
+		"exportSeparateClicksTip": "Save the video without the click sound mixed in, plus the mouse clicks as a separate WAV file next to it.",
+		"clickSoundsFailed": "The video was saved, but the click sounds file could not be written."
 	},
 	"inspector": {
 		"resetFocusPoint": "Redefinir ponto de foco",

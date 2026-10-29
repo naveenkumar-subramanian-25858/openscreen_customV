@@ -145,6 +145,39 @@ describe("calculateMp4ExportSettings", () => {
 		).toBe(true);
 	});
 
+	it("exports a crop at its own size when the frame is its shape to within a rounding error", () => {
+		// 3060x1800 is 17:10; an Auto frame lands a hair off it (padding), at 1.69965.
+		const settings = calculateMp4ExportSettings({
+			quality: "source",
+			sourceWidth: 3060,
+			sourceHeight: 1800,
+			aspectRatioValue: 2954 / 1738,
+			frameRate: 60,
+		});
+		expect(settings).toMatchObject({ width: 3060, height: 1800 });
+		// Exactly 17:10 asked for, exactly 17:10 delivered.
+		expect(
+			calculateMp4ExportSettings({
+				quality: "source",
+				sourceWidth: 3060,
+				sourceHeight: 1800,
+				aspectRatioValue: 17 / 10,
+				frameRate: 60,
+			}),
+		).toMatchObject({ width: 3060, height: 1800 });
+	});
+
+	it("still reshapes the footage when the frame is a genuinely different shape", () => {
+		const settings = calculateMp4ExportSettings({
+			quality: "source",
+			sourceWidth: 3060,
+			sourceHeight: 1800,
+			aspectRatioValue: 1,
+			frameRate: 60,
+		});
+		expect(settings).toMatchObject({ width: 1800, height: 1800 });
+	});
+
 	it("uses the cropped area as the effective source size", () => {
 		const effectiveSource = calculateEffectiveSourceDimensions(3840, 2160, {
 			width: 854 / 3840,
@@ -194,8 +227,8 @@ describe("calculateMp4ExportSettings bitrate", () => {
 			frameRate,
 		}).bitrate;
 
-	it("gives a 1080p60 export 18.7 Mb/s, where the pipeline alone gave it 8", () => {
-		expect(bitrate("good", 60)).toBe(18_662_400);
+	it("gives a 1080p60 export 31.1 Mb/s, where the pipeline alone gave it 8", () => {
+		expect(bitrate("good", 60)).toBe(31_104_000);
 	});
 
 	it("scales with the frame rate: twice the frames, twice the bits", () => {

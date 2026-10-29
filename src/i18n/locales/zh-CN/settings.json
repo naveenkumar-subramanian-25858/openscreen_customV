@@ -351,7 +351,13 @@
 		"done": "完成",
 		"ratio": "比例",
 		"cropVideo": "裁剪视频",
-		"lockAspectRatio": "锁定宽高比"
+		"lockAspectRatio": "锁定宽高比",
+		"customRatio": "Custom ratio",
+		"customRatioWidth": "Custom ratio width",
+		"customRatioHeight": "Custom ratio height",
+		"customRatioApply": "Use ratio",
+		"customRatioActive": "Crop locked to {{w}}:{{h}}",
+		"customRatioHint": "Type any W:H to crop to it"
 	},
 	"zoom": {
 		"position": {

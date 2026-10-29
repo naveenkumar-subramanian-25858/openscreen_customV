@@ -271,7 +271,7 @@ function setupApplicationMenu() {
 				},
 				{
 					label: mainT("common", "actions.permissions") || "Permissions…",
-					click: showPermissionsWindow,
+					click: () => showPermissionsWindow(),
 				},
 				{ type: "separator" as const },
 				{
@@ -803,8 +803,13 @@ async function runBackgroundUpdateCheck() {
 	}
 }
 
+// This build carries features the official releases do not (Region capture, click sounds as a
+// separate file), so installing an official update would silently remove them. Updates are
+// the maintainer's to apply by rebuilding.
+const CUSTOM_BUILD = true;
+
 function startBackgroundUpdateTimer() {
-	if (backgroundUpdateTimer) return;
+	if (backgroundUpdateTimer || CUSTOM_BUILD) return;
 	if (
 		!shouldStartBackgroundUpdateTimer({
 			isPackaged: app.isPackaged,
@@ -844,6 +849,10 @@ async function probeSelfUpdate(): Promise<UpdateOutcome> {
 }
 
 async function checkForUpdates(onVerdict?: () => void) {
+	if (CUSTOM_BUILD) {
+		onVerdict?.();
+		return;
+	}
 	if (updateCheckInFlight) {
 		// Another check owns the dialogs; this caller has nothing left to wait for.
 		onVerdict?.();
@@ -1023,7 +1032,7 @@ function updateTrayMenu(recording: boolean = false) {
 					? [
 							{
 								label: mainT("common", "actions.permissions") || "Permissions…",
-								click: showPermissionsWindow,
+								click: () => showPermissionsWindow(),
 							},
 						]
 					: []),

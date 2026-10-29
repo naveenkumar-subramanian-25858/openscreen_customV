@@ -1,3 +1,5 @@
+import { normalizeCaptureRegion } from "./regionUtils";
+
 export interface ProjectMedia {
 	screenVideoPath: string;
 	webcamVideoPath?: string;
@@ -17,6 +19,15 @@ export type CursorCaptureMode = "editable-overlay" | "system";
 
 export interface RecordingSession extends ProjectMedia {
 	createdAt: number;
+	/** Region capture: crop of the full recording as 0-1 fractions of the display. */
+	captureRegion?: CaptureRegion;
+}
+
+export interface CaptureRegion {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
 }
 
 export interface RecordedVideoAssetInput {
@@ -91,11 +102,14 @@ export function normalizeRecordingSession(candidate: unknown): RecordingSession 
 		return null;
 	}
 
+	const captureRegion = normalizeCaptureRegion(raw.captureRegion);
+
 	return {
 		...media,
 		createdAt:
 			typeof raw.createdAt === "number" && Number.isFinite(raw.createdAt)
 				? raw.createdAt
 				: Date.now(),
+		...(captureRegion ? { captureRegion } : {}),
 	};
 }

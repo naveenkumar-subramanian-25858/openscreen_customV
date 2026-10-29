@@ -21,6 +21,7 @@ import {
 	OpenInEditorIcon,
 	OrientationIcon,
 	RecordGlyph,
+	RegionIcon,
 	SourceIcon,
 	VolumeIcon,
 } from "./HudIcons";
@@ -228,6 +229,33 @@ export const HudSourceButton = memo(function HudSourceButton({
 				>
 					{label}
 				</span>
+			</button>
+		</HudTooltip>
+	);
+});
+
+export const HudRegionButton = memo(function HudRegionButton({
+	label,
+	tooltip,
+	disabled,
+	onClick,
+}: {
+	label: string;
+	tooltip: string;
+	disabled: boolean;
+	onClick: () => void;
+}) {
+	return (
+		<HudTooltip content={tooltip}>
+			<button
+				type="button"
+				data-testid="launch-region-button"
+				className={`${hudIconBtnClasses} ${hudLockedClasses}`}
+				onClick={disabled ? undefined : onClick}
+				aria-disabled={disabled || undefined}
+				aria-label={label}
+			>
+				<RegionIcon />
 			</button>
 		</HudTooltip>
 	);

@@ -67,6 +67,21 @@ interface Window {
 			options?: { persist?: boolean },
 		) => Promise<ProcessedDesktopSource | null>;
 		getSelectedSource: () => Promise<ProcessedDesktopSource | null>;
+		/** Region capture: drag out an area of the display the HUD is on. */
+		openRegionSelector: () => Promise<{ opened: boolean; reason?: string }>;
+		getRegionSelectorContext: () => Promise<{
+			width: number;
+			height: number;
+			scaleFactor: number;
+		} | null>;
+		confirmRegion: (rect: {
+			x: number;
+			y: number;
+			width: number;
+			height: number;
+		}) => Promise<ProcessedDesktopSource | null>;
+		cancelRegion: () => Promise<void>;
+		onRegionSelectorLocked: (callback: () => void) => () => void;
 		onSelectedSourceChanged: (
 			callback: (source: ProcessedDesktopSource | null) => void,
 		) => () => void;

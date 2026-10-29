@@ -69,6 +69,7 @@ function renderTopBar(
 					openProject: onOpenProject,
 					newProject: onNewProject,
 					save: onSave,
+					saveAs: vi.fn(),
 					export: noop,
 					openSettings: onOpenSettings,
 					renameProject: onRename,

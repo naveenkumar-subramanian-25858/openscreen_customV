@@ -34,7 +34,8 @@
 			"increaseFontSize": "Increase font size",
 			"mirror": "Mirror horizontally",
 			"mirrorTip": "Flip the text left to right, to read it in a mirror"
-		}
+		},
+		"recordRegion": "Record a region of the screen"
 	},
 	"audio": {
 		"systemAudio": "System audio",
@@ -153,5 +154,14 @@
 			"screenRequired": "Screen recording is needed to record.",
 			"ready": "You're all set."
 		}
+	},
+	"regionSelector": {
+		"hint": "Drag to select the area to record. Esc to cancel.",
+		"ratioWidth": "Ratio width",
+		"ratioHeight": "Ratio height",
+		"lockRatio": "Lock aspect ratio",
+		"width": "Width in pixels",
+		"height": "Height in pixels",
+		"confirm": "Record this area"
 	}
 }

@@ -357,3 +357,58 @@ describe("EditClipModal playhead for framing the crop", () => {
 		expect(onClose).toHaveBeenCalledTimes(1);
 	});
 });
+
+describe("EditClipModal custom crop ratio", () => {
+	function renderWithApply() {
+		const onApply = vi.fn();
+		renderWithI18n(
+			<EditClipModal
+				open
+				onClose={vi.fn()}
+				clip={CLIP}
+				assetMeta={ASSET}
+				videoSources={[]}
+				onApply={onApply}
+			/>,
+		);
+		return onApply;
+	}
+
+	it("shows a labelled custom ratio field", () => {
+		renderWithApply();
+		const row = screen.getByTestId("crop-custom-ratio");
+		expect(row).toHaveTextContent("Custom ratio");
+		expect(screen.getByRole("button", { name: "Use ratio" })).toBeDisabled();
+	});
+
+	it("crops to the typed ratio and says so", () => {
+		const onApply = renderWithApply();
+		fireEvent.change(screen.getByRole("spinbutton", { name: "Custom ratio width" }), {
+			target: { value: "21" },
+		});
+		fireEvent.change(screen.getByRole("spinbutton", { name: "Custom ratio height" }), {
+			target: { value: "9" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Use ratio" }));
+		expect(screen.getByTestId("crop-custom-ratio-status")).toHaveTextContent("21:9");
+
+		fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+		const crop = onApply.mock.calls[0][2];
+		// The source is taken as 16:9 until its metadata loads: a 21:9 crop fills the width and
+		// 16/21 of the height.
+		expect(crop.width).toBeCloseTo(1, 5);
+		expect(crop.height).toBeCloseTo(16 / 21, 5);
+		expect(crop.y).toBeCloseTo((1 - 16 / 21) / 2, 5);
+	});
+
+	it("refuses a ratio that is not a number", () => {
+		renderWithApply();
+		fireEvent.change(screen.getByRole("spinbutton", { name: "Custom ratio width" }), {
+			target: { value: "0" },
+		});
+		fireEvent.change(screen.getByRole("spinbutton", { name: "Custom ratio height" }), {
+			target: { value: "9" },
+		});
+		expect(screen.getByRole("button", { name: "Use ratio" })).toBeDisabled();
+	});
+});

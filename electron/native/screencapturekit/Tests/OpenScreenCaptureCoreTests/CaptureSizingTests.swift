@@ -139,16 +139,16 @@ final class CaptureSizingTests: XCTestCase {
 
 	func testBitrateFollowsTheCapturedSizeNotTheCeiling() {
 		// 1080p60 used to be asked for 76.5 Mbit/s, the 4K ceiling's figure.
-		XCTAssertEqual(defaultVideoBitrate(width: 1920, height: 1080, fps: 60), 12_441_600)
-		XCTAssertEqual(defaultVideoBitrate(width: 2560, height: 1440, fps: 60), 22_118_400)
-		XCTAssertEqual(defaultVideoBitrate(width: 3840, height: 2160, fps: 60), 49_766_400)
+		XCTAssertEqual(defaultVideoBitrate(width: 1920, height: 1080, fps: 60), 24_883_200)
+		XCTAssertEqual(defaultVideoBitrate(width: 2560, height: 1440, fps: 60), 44_236_800)
+		XCTAssertEqual(defaultVideoBitrate(width: 3840, height: 2160, fps: 60), 99_532_800)
 	}
 
 	func testBitrateStaysWithinItsFloorAndCeiling() {
 		// A small window still gets enough bits to stay sharp; 4K at 120 fps does not ask for
 		// more than any disk wants.
 		XCTAssertEqual(defaultVideoBitrate(width: 320, height: 240, fps: 30), 2_000_000)
-		XCTAssertEqual(defaultVideoBitrate(width: 3840, height: 2160, fps: 120), 60_000_000)
+		XCTAssertEqual(defaultVideoBitrate(width: 3840, height: 2160, fps: 120), 100_000_000)
 	}
 
 	// MARK: - Keyframe interval (#937)
@@ -160,5 +160,35 @@ final class CaptureSizingTests: XCTestCase {
 
 	func testKeyFrameIntervalNeverFallsBelowOneFrame() {
 		XCTAssertEqual(videoKeyFrameInterval(fps: 0), 1)
+	}
+
+	func testRegionCaptureRectKeepsNativePixelsOnRetina() throws {
+		// 1512x982 points at 2x is 3024x1964 pixels; a quarter-wide, half-high region.
+		let result = try XCTUnwrap(
+			regionCaptureRect(
+				contentSize: CGSize(width: 1512, height: 982),
+				pointPixelScale: 2,
+				crop: CGRect(x: 0.25, y: 0.1, width: 0.25, height: 0.5)
+			)
+		)
+		XCTAssertEqual(result.width, 756)
+		XCTAssertEqual(result.height, 982)
+		XCTAssertEqual(result.rect.width * 2, CGFloat(result.width))
+		XCTAssertEqual(result.rect.height * 2, CGFloat(result.height))
+		XCTAssertEqual(result.rect.minX, 378)
+	}
+
+	func testRegionCaptureRectStaysInsideTheDisplayAndEven() throws {
+		let result = try XCTUnwrap(
+			regionCaptureRect(
+				contentSize: CGSize(width: 1920, height: 1080),
+				pointPixelScale: 1,
+				crop: CGRect(x: 0.9999, y: 0.9999, width: 0.5, height: 0.5)
+			)
+		)
+		XCTAssertEqual(result.width % 2, 0)
+		XCTAssertEqual(result.height % 2, 0)
+		XCTAssertLessThanOrEqual(result.rect.maxX, 1920)
+		XCTAssertLessThanOrEqual(result.rect.maxY, 1080)
 	}
 }

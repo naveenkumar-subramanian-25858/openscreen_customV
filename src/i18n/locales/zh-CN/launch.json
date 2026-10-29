@@ -34,7 +34,8 @@
 			"increaseFontSize": "增大字体",
 			"mirror": "水平镜像",
 			"mirrorTip": "左右翻转文字，便于通过镜面阅读"
-		}
+		},
+		"recordRegion": "Record a region of the screen"
 	},
 	"audio": {
 		"systemAudio": "系统音频",
@@ -153,5 +154,14 @@
 			"screenRequired": "录制需要屏幕录制权限。",
 			"ready": "一切就绪。"
 		}
+	},
+	"regionSelector": {
+		"hint": "Drag to select the area to record. Esc to cancel.",
+		"ratioWidth": "Ratio width",
+		"ratioHeight": "Ratio height",
+		"lockRatio": "Lock aspect ratio",
+		"width": "Width in pixels",
+		"height": "Height in pixels",
+		"confirm": "Record this area"
 	}
 }

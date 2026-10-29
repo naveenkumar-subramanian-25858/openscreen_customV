@@ -34,7 +34,8 @@
 			"increaseFontSize": "Увеличить размер шрифта",
 			"mirror": "Отразить по горизонтали",
 			"mirrorTip": "Отражает текст, чтобы читать его в зеркале"
-		}
+		},
+		"recordRegion": "Record a region of the screen"
 	},
 	"audio": {
 		"systemAudio": "Системный звук",
@@ -153,5 +154,14 @@
 			"screenRequired": "Для записи нужна запись экрана.",
 			"ready": "Всё готово."
 		}
+	},
+	"regionSelector": {
+		"hint": "Drag to select the area to record. Esc to cancel.",
+		"ratioWidth": "Ratio width",
+		"ratioHeight": "Ratio height",
+		"lockRatio": "Lock aspect ratio",
+		"width": "Width in pixels",
+		"height": "Height in pixels",
+		"confirm": "Record this area"
 	}
 }

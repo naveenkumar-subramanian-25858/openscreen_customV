@@ -67,6 +67,7 @@ function TopBar({ mode }: { mode: EditorMode }) {
 				openProject: noop,
 				newProject: noop,
 				save: noop,
+				saveAs: noop,
 				export: noop,
 				openSettings: noop,
 				renameProject: noop,

@@ -92,6 +92,7 @@
 		"openProject": "プロジェクトを開く",
 		"newProject": "新規プロジェクト",
 		"saveProject": "プロジェクトを保存",
+		"saveProjectAs": "Save project as…",
 		"unsaved": "未保存",
 		"saved": "保存済み",
 		"switchToLightTheme": "ライトテーマに切り替え",
@@ -215,7 +216,10 @@
 		"failedToWriteFile": "ファイルの書き込みに失敗しました",
 		"qualityUpscaleWarning": "アップスケール",
 		"exportedVideoOf": "の動画を書き出しました。所要時間:",
-		"nothingToExport": "書き出す内容がありません — タイムラインが空です。"
+		"nothingToExport": "書き出す内容がありません — タイムラインが空です。",
+		"exportSeparateClicks": "Video + click sounds (2 files)",
+		"exportSeparateClicksTip": "Save the video without the click sound mixed in, plus the mouse clicks as a separate WAV file next to it.",
+		"clickSoundsFailed": "The video was saved, but the click sounds file could not be written."
 	},
 	"inspector": {
 		"resetFocusPoint": "フォーカスポイントをリセット",

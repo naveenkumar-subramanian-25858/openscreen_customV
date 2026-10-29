@@ -48,6 +48,11 @@ const BITRATE_BASE = 18_000_000;
 const HIGH_FRAME_RATE_THRESHOLD = 60;
 const HIGH_FRAME_RATE_BOOST = 1.7;
 
+// The macOS helper sizes the capture from the display itself and only uses these as a ceiling.
+// 8K, not the 4K the rest of the app assumes, so a 5K/6K Retina display is not scaled down.
+const MAC_CAPTURE_MAX_WIDTH = 7680;
+const MAC_CAPTURE_MAX_HEIGHT = 4320;
+
 const DEFAULT_WIDTH = 1920;
 const DEFAULT_HEIGHT = 1080;
 
@@ -1397,11 +1402,10 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 				},
 				video: {
 					fps: TARGET_FRAME_RATE,
-					width: TARGET_WIDTH,
-					height: TARGET_HEIGHT,
-					// No bitrate, as on Linux: TARGET_WIDTH/HEIGHT are the 4K ceiling,
-					// not the capture size, and the ceiling's 76.5 Mbit/s went out for a
-					// 1080p take too (#924). The helper derives it from the size it got.
+					width: MAC_CAPTURE_MAX_WIDTH,
+					height: MAC_CAPTURE_MAX_HEIGHT,
+					// No bitrate: the width/height are a ceiling, not the capture size, and
+					// a ceiling-derived rate went out for a 1080p take too (#924). The helper derives it from the size it got.
 					hideSystemCursor: cursorCaptureMode === "editable-overlay",
 				},
 				audio: {

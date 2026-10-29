@@ -178,6 +178,23 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	getSelectedSource: () => {
 		return ipcRenderer.invoke("get-selected-source");
 	},
+	openRegionSelector: () => {
+		return ipcRenderer.invoke("open-region-selector");
+	},
+	getRegionSelectorContext: () => {
+		return ipcRenderer.invoke("get-region-selector-context");
+	},
+	confirmRegion: (rect: { x: number; y: number; width: number; height: number }) => {
+		return ipcRenderer.invoke("confirm-region", rect);
+	},
+	cancelRegion: () => {
+		return ipcRenderer.invoke("cancel-region");
+	},
+	onRegionSelectorLocked: (callback: () => void) => {
+		const listener = () => callback();
+		ipcRenderer.on("region-selector-locked", listener);
+		return () => ipcRenderer.removeListener("region-selector-locked", listener);
+	},
 	getRecordingPrefs: () => {
 		return ipcRenderer.invoke("get-recording-prefs");
 	},

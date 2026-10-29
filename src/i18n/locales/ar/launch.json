@@ -34,7 +34,8 @@
 			"increaseFontSize": "تكبير حجم الخط",
 			"mirror": "عكس أفقي",
 			"mirrorTip": "اقلب النص أفقيًا لقراءته في مرآة"
-		}
+		},
+		"recordRegion": "Record a region of the screen"
 	},
 	"audio": {
 		"systemAudio": "صوت النظام",
@@ -153,5 +154,14 @@
 			"screenRequired": "تسجيل الشاشة مطلوب للتسجيل.",
 			"ready": "كل شيء جاهز."
 		}
+	},
+	"regionSelector": {
+		"hint": "Drag to select the area to record. Esc to cancel.",
+		"ratioWidth": "Ratio width",
+		"ratioHeight": "Ratio height",
+		"lockRatio": "Lock aspect ratio",
+		"width": "Width in pixels",
+		"height": "Height in pixels",
+		"confirm": "Record this area"
 	}
 }

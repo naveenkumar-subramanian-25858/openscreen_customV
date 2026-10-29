@@ -111,6 +111,7 @@ function renderPane() {
 							openProject: noop,
 							newProject: noop,
 							save: noop,
+							saveAs: noop,
 							export: noop,
 							openSettings: noop,
 							renameProject: noop,

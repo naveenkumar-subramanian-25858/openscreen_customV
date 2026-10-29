@@ -92,6 +92,7 @@
 		"openProject": "프로젝트 열기",
 		"newProject": "새 프로젝트",
 		"saveProject": "프로젝트 저장",
+		"saveProjectAs": "Save project as…",
 		"unsaved": "저장 안 됨",
 		"saved": "저장됨",
 		"switchToLightTheme": "라이트 테마로 전환",
@@ -215,7 +216,10 @@
 		"failedToWriteFile": "파일 쓰기에 실패했습니다",
 		"qualityUpscaleWarning": "업스케일",
 		"exportedVideoOf": "분량의 영상을 내보냈습니다. 소요 시간:",
-		"nothingToExport": "내보낼 항목이 없습니다 — 타임라인이 비어 있습니다."
+		"nothingToExport": "내보낼 항목이 없습니다 — 타임라인이 비어 있습니다.",
+		"exportSeparateClicks": "Video + click sounds (2 files)",
+		"exportSeparateClicksTip": "Save the video without the click sound mixed in, plus the mouse clicks as a separate WAV file next to it.",
+		"clickSoundsFailed": "The video was saved, but the click sounds file could not be written."
 	},
 	"inspector": {
 		"resetFocusPoint": "포커스 지점 재설정",

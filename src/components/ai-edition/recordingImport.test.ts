@@ -7,7 +7,9 @@ import { useProjectStore } from "@/lib/ai-edition/store/projectStore";
 import { undo } from "@/lib/ai-edition/store/undo";
 import { clearHistory, past } from "@/lib/ai-edition/store/undoStack";
 import {
+	applyPendingCaptureRegion,
 	applyPendingFreshRecordingAutoZooms,
+	clearPendingCaptureRegion,
 	consumeFreshRecordingAutoZoomPending,
 	importPendingRecording,
 	markFreshRecordingAutoZoomPending,
@@ -215,6 +217,7 @@ describe("what the recording import leaves on the undo stack", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		consumeFreshRecordingAutoZoomPending();
+		clearPendingCaptureRegion();
 		useProjectStore.getState().clear();
 		useProjectStore.setState(realActions);
 		clearHistory();
@@ -232,6 +235,98 @@ describe("what the recording import leaves on the undo stack", () => {
 
 		expect(past).toHaveLength(0);
 		expect(undo()).toBe(false);
+	});
+
+	it("crops the clip of a region take once it exists, without touching the undo stack", async () => {
+		const captureRegion = { x: 0.25, y: 0.2, width: 0.5, height: 0.4 };
+		const api = stubElectronApi(SCREEN_PATH);
+		api.getCurrentRecordingSession.mockResolvedValue({
+			success: true,
+			session: {
+				screenVideoPath: SCREEN_PATH,
+				createdAt: 0,
+				cursorCaptureMode: "editable-overlay",
+				captureRegion,
+			},
+		} as never);
+
+		await importPendingRecording();
+
+		// No clip yet: it appears when the video reports its duration, so nothing to crop.
+		const imported = useProjectStore.getState().document as AxcutDocument;
+		expect(applyPendingCaptureRegion(imported)).toBe(imported);
+
+		const probed: AxcutDocument = {
+			...imported,
+			assets: imported.assets.map((a) => ({ ...a, durationSec: 42 })),
+		};
+		const withClip = replaceTimelineOp(probed, [{ startSec: 0, endSec: 42 }], "Auto-created");
+		const cropped = applyPendingCaptureRegion(withClip);
+		expect(cropped.timeline.clips.map((clip) => clip.cropRegion)).toEqual([captureRegion]);
+		// Spent: the next document is not this take's to crop.
+		expect(applyPendingCaptureRegion(withClip)).toBe(withClip);
+		expect(past).toHaveLength(0);
+	});
+
+	it("has the region waiting before the first await that lets the clip appear", async () => {
+		const captureRegion = { x: 0.1, y: 0.2, width: 0.5, height: 0.4 };
+		const api = stubElectronApi(SCREEN_PATH);
+		api.getCurrentRecordingSession.mockResolvedValue({
+			success: true,
+			session: {
+				screenVideoPath: SCREEN_PATH,
+				createdAt: 0,
+				cursorCaptureMode: "editable-overlay",
+				captureRegion,
+			},
+		} as never);
+		// `loadedmetadata` can land while the import is still awaiting the main process: the clip
+		// appears and the editor asks for the region right then.
+		let croppedDuringAwait: AxcutDocument | null = null;
+		api.setCurrentRecordingSession.mockImplementation(async () => {
+			const doc = useProjectStore.getState().document as AxcutDocument;
+			const probed = { ...doc, assets: doc.assets.map((a) => ({ ...a, durationSec: 42 })) };
+			croppedDuringAwait = applyPendingCaptureRegion(
+				replaceTimelineOp(probed, [{ startSec: 0, endSec: 42 }], "Auto-created"),
+			);
+			return { success: true };
+		});
+
+		await importPendingRecording();
+
+		expect(
+			(croppedDuringAwait as AxcutDocument | null)?.timeline.clips.map((clip) => clip.cropRegion),
+		).toEqual([captureRegion]);
+	});
+
+	it("keeps the crop when the timeline is rebuilt around a trim", () => {
+		const captureRegion = { x: 0.1, y: 0.1, width: 0.5, height: 0.5 };
+		const base = {
+			...withAsset(),
+		};
+		const probed: AxcutDocument = {
+			...base,
+			assets: base.assets.map((a) => ({ ...a, durationSec: 10 })),
+		};
+		const first = replaceTimelineOp(probed, [{ startSec: 0, endSec: 10 }], "seed");
+		const cropped: AxcutDocument = {
+			...first,
+			timeline: {
+				...first.timeline,
+				clips: first.timeline.clips.map((clip) => ({ ...clip, cropRegion: captureRegion })),
+			},
+		};
+		// A cut in the middle splits one clip into two; the second half has no ancestor.
+		const split = replaceTimelineOp(
+			cropped,
+			[
+				{ startSec: 0, endSec: 4 },
+				{ startSec: 6, endSec: 10 },
+			],
+			"cut",
+		);
+		expect(split.timeline.clips).toHaveLength(2);
+		expect(split.timeline.clips.every((clip) => clip.cropRegion?.width === 0.5)).toBe(true);
 	});
 
 	it("still has its clip after the first Ctrl+Z", async () => {

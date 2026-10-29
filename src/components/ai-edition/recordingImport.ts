@@ -28,6 +28,7 @@ import {
 	appendAutoZoomSuggestions,
 	collectAutoZoomSuggestionsForLatestDocument,
 } from "@/lib/ai-edition/timeline/apply-auto-zooms";
+import type { CaptureRegion } from "@/lib/recordingSession";
 import { nativeBridgeClient } from "@/native/client";
 
 // Fresh recordings used to get cursor-dwell zooms on load (legacy editor
@@ -314,6 +315,39 @@ export async function maybeSaveFreshRecordingAutoZooms(
 	return done;
 }
 
+// A region take records the whole display; the chosen area is the clip's crop. The clip does
+// not exist yet when the import runs -- it appears once the video reports its duration -- so the
+// region waits here, the same way the fresh-recording auto-zoom does, until a document holds a
+// clip of that take.
+let pendingCaptureRegion: { assetPath: string; region: CaptureRegion } | null = null;
+
+/**
+ * Crops the clips of the pending region take, once, and returns the document unchanged when
+ * there is nothing to do yet. Pure apart from consuming the hand-off.
+ */
+export function applyPendingCaptureRegion(document: AxcutDocument): AxcutDocument {
+	if (!pendingCaptureRegion) return document;
+	const { assetPath, region } = pendingCaptureRegion;
+	const asset = document.assets.find((candidate) => candidate.originalPath === assetPath);
+	if (!asset) return document;
+	const clips = document.timeline.clips;
+	if (!clips.some((clip) => clip.assetId === asset.id)) return document;
+	pendingCaptureRegion = null;
+	return {
+		...document,
+		timeline: {
+			...document.timeline,
+			clips: clips.map((clip) =>
+				clip.assetId === asset.id && !clip.cropRegion ? { ...clip, cropRegion: region } : clip,
+			),
+		},
+	};
+}
+
+export function clearPendingCaptureRegion(): void {
+	pendingCaptureRegion = null;
+}
+
 /**
  * Imports the recording the HUD handed over into a new project, and consumes the
  * hand-off so it is imported exactly once.
@@ -337,6 +371,9 @@ export async function importPendingRecording(
 	const screenPath = result.success ? result.session?.screenVideoPath : undefined;
 	if (!screenPath) return false;
 	const cursorCaptureMode = result.success ? result.session?.cursorCaptureMode : undefined;
+	// A region take records the whole display; the chosen area becomes the clip's crop, so it
+	// stays adjustable in the editor instead of being baked into the file.
+	const captureRegion = result.success ? result.session?.captureRegion : undefined;
 	const warning = result.success ? result.warning : undefined;
 
 	const label = screenPath.split(/[\\/]/).pop() || "Recording";
@@ -353,6 +390,11 @@ export async function importPendingRecording(
 	// preference.
 	if (cursorCaptureMode !== "system") {
 		markFreshRecordingAutoZoomPending(screenPath);
+	}
+	// Same reason, same place: `loadedmetadata` can fire during the awaits below, and the
+	// region has to be waiting by then or the take opens uncropped.
+	if (captureRegion) {
+		pendingCaptureRegion = { assetPath: screenPath, region: captureRegion };
 	}
 	// Consumed: the recording now lives in a project. Cleared here rather than
 	// after the timeline seed below so a failure down there can't hand the same

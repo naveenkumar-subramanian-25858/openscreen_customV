@@ -127,7 +127,7 @@ describe("ExportDialog MP4 params", () => {
 		renderDialog();
 		const expected = (frameRate: number) =>
 			calculateMp4ExportSettings({
-				quality: "good",
+				quality: "source",
 				sourceWidth: 1920,
 				sourceHeight: 1080,
 				aspectRatioValue: 16 / 9,

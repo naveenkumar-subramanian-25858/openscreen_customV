@@ -46,6 +46,12 @@ import {
 	type StoreRecordedSessionInput,
 } from "../../src/lib/recordingSession";
 import {
+	normalizeCaptureRegion,
+	type PixelRect,
+	regionFrameBounds,
+	toNormalizedRegion,
+} from "../../src/lib/regionUtils";
+import {
 	AI_EDITION_OPEN_PROJECT_CHANNEL,
 	type CursorRecordingData,
 	type CursorRecordingSample,
@@ -70,6 +76,7 @@ import { DocumentService } from "../ai-edition/document-service";
 import { LlmConfigStore } from "../ai-edition/llm-config-store";
 import { StylePresetService } from "../ai-edition/style-preset-service";
 import { AppSettingsStore } from "../app-settings";
+import { writeFileAtomic } from "../atomic-write";
 import { createRunnerHost } from "../cli/runnerHost";
 import { hideCountdownOverlay } from "../countdownOverlay";
 import { isDiagnosticModeEnabled, mainLogBuffer } from "../diagnostics/main-log-buffer";
@@ -161,7 +168,7 @@ import {
 	shouldPersistSelectedSource,
 } from "../recording-source-settings";
 import { getSttManager } from "../stt";
-import { createRunnerWindow } from "../windows";
+import { createRegionSelectorWindow, createRunnerWindow } from "../windows";
 import { getSourcesByType, shouldEnumerateSourceTypesSeparately } from "./desktopSourceTypes";
 import { registerNativeBridgeHandlers } from "./nativeBridge";
 import { createNativeMacMidCaptureErrorWatch } from "./nativeMacMidCaptureErrorWatch";
@@ -661,6 +668,15 @@ type AttachNativeMacWebcamRecordingInput = {
 };
 
 let selectedSource: SelectedSource | null = null;
+// Region capture: the overlay window and the display it covers. The confirmed region is
+// stored on selectedSource.region and travels with the take as `RecordingSession.captureRegion`.
+let regionSelectorWindow: BrowserWindow | null = null;
+let regionSelectorDisplay: Electron.Display | null = null;
+// The permissions window has already been shown for a region take since the app started.
+let regionPermissionsPrompted = false;
+// The video file a region take already cropped at capture (macOS native helper). Its session
+// must not carry `captureRegion` too, or the editor would crop the crop.
+let croppedAtCaptureVideoPath: string | null = null;
 let selectedDesktopSource: DesktopCapturerSource | null = null;
 let lastEnumeratedSources = new Map<string, DesktopCapturerSource>();
 const selectSourceGeneration = { value: 0 };
@@ -1150,7 +1166,16 @@ function getSelectedSourceBounds() {
 	const sourceDisplay = Number.isFinite(sourceDisplayId)
 		? (screen.getAllDisplays().find((display) => display.id === sourceDisplayId) ?? null)
 		: null;
-	return (sourceDisplay ?? screen.getDisplayNearestPoint(cursor)).bounds;
+	const displayBounds = (sourceDisplay ?? screen.getDisplayNearestPoint(cursor)).bounds;
+
+	// A region take cropped at capture records only that part of the display, so the cursor is
+	// placed against it. Against the whole display every sample landed off by the region's
+	// origin, scaled: low in the top half, high in the bottom half, worst for a big region.
+	const cropped = normalizeCaptureRegion(selectedSource?.region);
+	if (nativeMacCaptureProcess && croppedAtCaptureVideoPath && cropped) {
+		return activeMacCaptureBounds ?? regionFrameBounds(displayBounds, cropped);
+	}
+	return displayBounds;
 }
 
 function getSelectedSourceId() {
@@ -1783,6 +1808,56 @@ function waitForNativeMacCaptureStart(proc: ChildProcessWithoutNullStreams) {
 	});
 }
 
+// The name the source had before a region renamed it, so dropping the region puts it back.
+let regionBaseName: string | null = null;
+
+/**
+ * Closes the overlay. A confirmed region lives only as long as its outline is on screen: with
+ * the outline gone nothing shows what would be recorded, so the region goes with it. Returns
+ * whether the selected source changed, for the caller to broadcast.
+ */
+function closeRegionSelectorWindow(): boolean {
+	const win = regionSelectorWindow;
+	regionSelectorWindow = null;
+	regionSelectorDisplay = null;
+	if (win && !win.isDestroyed()) {
+		win.close();
+	}
+	if (!selectedSource?.region) {
+		return false;
+	}
+	const { region: _region, ...rest } = selectedSource;
+	selectedSource = regionBaseName ? { ...rest, name: regionBaseName } : rest;
+	regionBaseName = null;
+	return true;
+}
+
+function getRegionDisplayPixelSize(display: Electron.Display) {
+	return {
+		width: Math.round(display.size.width * display.scaleFactor),
+		height: Math.round(display.size.height * display.scaleFactor),
+	};
+}
+
+// A region take is cropped by the capture itself where it can be (the macOS helper). Where it
+// cannot, the whole display is recorded and the crop travels with the session, so the editor
+// applies it non-destructively.
+function attachCaptureRegion(session: RecordingSession) {
+	if (croppedAtCaptureVideoPath && session.screenVideoPath === croppedAtCaptureVideoPath) {
+		return;
+	}
+	// The overlay can already be gone by the time a later step rebuilds the session (the webcam
+	// attach), so the take's own session is the second place to look.
+	const captureRegion =
+		normalizeCaptureRegion(selectedSource?.region) ??
+		(currentRecordingSession?.screenVideoPath === session.screenVideoPath
+			? normalizeCaptureRegion(currentRecordingSession.captureRegion)
+			: null);
+	if (captureRegion) {
+		session.captureRegion = captureRegion;
+	}
+}
+
 function setCurrentRecordingSessionState(session: RecordingSession | null) {
 	currentRecordingSession = session;
 	currentVideoPath = session?.screenVideoPath ?? null;
@@ -2019,6 +2094,12 @@ export function registerIpcHandlers(
 			}
 		}
 	};
+	/** Closes the region overlay, telling the HUD when that also drops the confirmed region. */
+	const closeRegionOverlay = () => {
+		if (closeRegionSelectorWindow()) {
+			broadcastSelectedSource(selectedSource);
+		}
+	};
 	const sameSelectedSource = (left: SelectedSource | null, right: SelectedSource | null) =>
 		left?.id === right?.id && left?.name === right?.name && left?.display_id === right?.display_id;
 
@@ -2089,8 +2170,10 @@ export function registerIpcHandlers(
 		if (currentLive) {
 			selectedSource = {
 				id: currentLive.id,
-				name: currentLive.name,
+				// A region renamed the source; a refresh must not turn it back into a full screen.
+				name: selectedSource?.region ? selectedSource.name : currentLive.name,
 				display_id: currentLive.display_id,
+				...(selectedSource?.region ? { region: selectedSource.region } : {}),
 			};
 			selectedDesktopSource = currentLive;
 		} else if (enumerationIncludesSourceKind(opts?.types, selectedSource?.id)) {
@@ -2138,6 +2221,7 @@ export function registerIpcHandlers(
 	};
 
 	async function selectSource(source: SelectedSource, options?: { persist?: boolean }) {
+		closeRegionOverlay();
 		const next = await selectSourceWithOwnership(
 			selectSourceContext,
 			{ id: source.id, name: source.name, display_id: source.display_id },
@@ -2181,6 +2265,19 @@ export function registerIpcHandlers(
 		return collectMacCaptureExcludedWindowIds(appWindowSourceIds);
 	}
 
+	function openRegionOverlay(display: Electron.Display) {
+		closeRegionOverlay();
+		regionSelectorDisplay = display;
+		const win = createRegionSelectorWindow(display);
+		regionSelectorWindow = win;
+		win.on("closed", () => {
+			if (regionSelectorWindow === win) {
+				regionSelectorWindow = null;
+				regionSelectorDisplay = null;
+			}
+		});
+	}
+
 	async function presentMacSystemPicker(session: MacPickerSession) {
 		const excludedWindowIds = macPickerExcludedWindowIds();
 		// Out of the way while the picker is up. The HUD window is far larger than the bar
@@ -2219,6 +2316,7 @@ export function registerIpcHandlers(
 			}
 			return;
 		}
+		closeRegionOverlay();
 		const picked = selectedSourceFromPick(pick);
 		selectedSource = picked;
 		selectedDesktopSource = null;
@@ -2272,6 +2370,11 @@ export function registerIpcHandlers(
 				selectedDesktopSource = null;
 				broadcastSelectedSource(null);
 			}
+			return selectedSource;
+		}
+		// A region is an explicit choice made on screen, not a remembered one. Restoring the last
+		// recorded source over it is what turned a confirmed region back into the full screen.
+		if (selectedSource?.region) {
 			return selectedSource;
 		}
 		const lastSource = appSettings.getSnapshot().lastSource;
@@ -2504,6 +2607,135 @@ export function registerIpcHandlers(
 		return { opened: true };
 	});
 
+	ipcMain.handle("open-region-selector", async () => {
+		if (process.platform === "linux") {
+			return { opened: false, reason: "unsupported-platform" };
+		}
+		// Region mode never shows a source picker, and opens at once whatever the permissions say:
+		// drawing needs none. Screen Recording is asked for when the area is confirmed (see
+		// `confirm-region`), so a permissions window can never leave the user with no overlay.
+		openRegionOverlay(screen.getDisplayNearestPoint(screen.getCursorScreenPoint()));
+		return { opened: true };
+	});
+
+	ipcMain.handle("get-region-selector-context", () => {
+		if (!regionSelectorDisplay) {
+			return null;
+		}
+		return {
+			scaleFactor: regionSelectorDisplay.scaleFactor,
+			...getRegionDisplayPixelSize(regionSelectorDisplay),
+		};
+	});
+
+	// rect is in device pixels, relative to the display's top-left corner.
+	ipcMain.handle("confirm-region", async (_, rect: PixelRect) => {
+		const win = regionSelectorWindow;
+		const display = regionSelectorDisplay;
+		if (!win || win.isDestroyed() || !display) {
+			return null;
+		}
+
+		const bounds = getRegionDisplayPixelSize(display);
+		const region = normalizeCaptureRegion(toNormalizedRegion(rect, bounds));
+		if (!region) {
+			return null;
+		}
+
+		// The take records this display itself, which needs Screen Recording. Either reading is
+		// enough: the app's own (cached, stale until a relaunch) and the helper's fresh one can
+		// disagree in both directions, and a refusal of only one is not a refusal. A missing
+		// permission sends the user to the permissions window ONCE; after that the take is let
+		// through, because the recording start reports a real refusal itself and gating again
+		// here is what looped the user back to the window with every grant in place.
+		if (process.platform === "darwin" && !regionPermissionsPrompted) {
+			const appGranted = systemPreferences.getMediaAccessStatus("screen") === "granted";
+			const snapshot = await getMacPermissions()
+				.read()
+				.catch(() => null);
+			const granted = appGranted || !snapshot || snapshot.screen === "granted";
+			console.info("[region] screen access", { appGranted, helperSays: snapshot?.screen });
+			if (!granted) {
+				regionPermissionsPrompted = true;
+				closeRegionOverlay();
+				// Registers this app in System Settings' Screen Recording list (and raises macOS'
+				// own prompt the first time). Without it the list has no Openscreen row to turn
+				// on, and the permissions window has no Screen Recording row to point at either,
+				// since the grant is "optional" while Apple's picker is in use.
+				await desktopCapturer
+					.getSources({ types: ["screen"], thumbnailSize: { width: 1, height: 1 } })
+					.catch(() => undefined);
+				const answer = await dialog.showMessageBox({
+					type: "info",
+					title: mainT("dialogs", "regionPermission.title"),
+					message: mainT("dialogs", "regionPermission.title"),
+					detail: mainT("dialogs", "regionPermission.message"),
+					buttons: [
+						mainT("dialogs", "regionPermission.openSettings"),
+						mainT("dialogs", "regionPermission.cancel"),
+					],
+					defaultId: 0,
+					cancelId: 1,
+				});
+				if (answer.response === 0) {
+					void shell.openExternal(
+						"x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+					);
+				}
+				// Back to the overlay as soon as the grant is there, without a second click.
+				void (async () => {
+					for (let attempt = 0; attempt < 80; attempt++) {
+						await new Promise((resolve) => setTimeout(resolve, 1500));
+						const now = await getMacPermissions()
+							.read()
+							.catch(() => null);
+						if (now?.screen === "granted") {
+							openRegionOverlay(display);
+							return;
+						}
+					}
+				})();
+				return null;
+			}
+		}
+
+		const regionName = `Region ${Math.round(region.width * bounds.width)}×${Math.round(region.height * bounds.height)}`;
+		const sources = await desktopCapturer.getSources({
+			types: ["screen"],
+			thumbnailSize: { width: 0, height: 0 },
+		});
+		// Never another monitor's capture under this display's region: with no id match the only
+		// safe answer is the single screen there is.
+		const source =
+			sources.find((candidate) => candidate.display_id === String(display.id)) ??
+			(sources.length === 1 ? sources[0] : undefined);
+		if (!source) {
+			return null;
+		}
+		lastEnumeratedSources = new Map(sources.map((candidate) => [candidate.id, candidate]));
+
+		// A source of our own, not a pick from Apple's picker: it names the display directly.
+		selectedDesktopSource = source;
+		regionBaseName = source.name;
+		selectedSource = {
+			id: source.id,
+			display_id: source.display_id || String(display.id),
+			name: regionName,
+			region,
+		};
+		broadcastSelectedSource(selectedSource);
+
+		// Keep the frame on screen as a click-through outline of what will be recorded.
+		win.setIgnoreMouseEvents(true);
+		win.setFocusable(false);
+		win.webContents.send("region-selector-locked");
+		return selectedSource;
+	});
+
+	ipcMain.handle("cancel-region", () => {
+		closeRegionOverlay();
+	});
+
 	ipcMain.handle("open-notes", async () => {
 		const notesSelectorWin = getNotesWindow();
 		if (notesSelectorWin) {
@@ -2516,6 +2748,7 @@ export function registerIpcHandlers(
 	});
 
 	ipcMain.handle("switch-to-editor", () => {
+		closeRegionOverlay();
 		// createEditorWindow already closes the current mainWindow (the HUD) before
 		// opening the editor. Closing it here too double-closes, leaving ghost
 		// transparent windows and compounding the HUD shadow each cycle.
@@ -2866,6 +3099,7 @@ export function registerIpcHandlers(
 				createdAt: recordingId,
 				cursorCaptureMode,
 			};
+			attachCaptureRegion(session_);
 			setCurrentRecordingSessionState(session_);
 			currentProjectPath = null;
 
@@ -3226,12 +3460,18 @@ export function registerIpcHandlers(
 				pick?.bounds ?? request.source.bounds ?? sourceDisplay?.bounds ?? getSelectedSourceBounds();
 			const captureExcludedWindowSourceIds: string[] = [];
 			if (request.source.type === "display") {
-				for (const window of [getMainWindow(), getNotesWindow()]) {
+				for (const window of [getMainWindow(), getNotesWindow(), regionSelectorWindow]) {
 					if (window && !window.isDestroyed()) {
 						captureExcludedWindowSourceIds.push(window.getMediaSourceId());
 					}
 				}
 			}
+			// A region take is cropped by ScreenCaptureKit itself, at the display's native pixels.
+			const regionCrop =
+				request.source.type === "display" && !pick
+					? normalizeCaptureRegion(selectedSource?.region)
+					: null;
+			croppedAtCaptureVideoPath = regionCrop ? outputPath : null;
 			const config: NativeMacRecordingRequest = {
 				...request,
 				schemaVersion: 1,
@@ -3242,6 +3482,7 @@ export function registerIpcHandlers(
 				source: {
 					...request.source,
 					bounds,
+					...(regionCrop ? { cropRegion: regionCrop } : {}),
 				},
 				video: {
 					...request.video,
@@ -3640,6 +3881,7 @@ export function registerIpcHandlers(
 			const session: RecordingSession = webcamVideoPath
 				? { screenVideoPath, webcamVideoPath, createdAt: recordingId, cursorCaptureMode }
 				: { screenVideoPath, createdAt: recordingId, cursorCaptureMode };
+			attachCaptureRegion(session);
 			setCurrentRecordingSessionState(session);
 			currentProjectPath = null;
 
@@ -3800,6 +4042,7 @@ export function registerIpcHandlers(
 				createdAt: recordingId,
 				cursorCaptureMode,
 			};
+			attachCaptureRegion(session);
 			setCurrentRecordingSessionState(session);
 			currentProjectPath = null;
 
@@ -3928,6 +4171,7 @@ export function registerIpcHandlers(
 					...(webcamOffsetMs !== undefined ? { webcamOffsetMs } : {}),
 					...(cursorCaptureMode ? { cursorCaptureMode } : {}),
 				};
+				attachCaptureRegion(session);
 				setCurrentRecordingSessionState(session);
 				currentProjectPath = null;
 
@@ -4081,6 +4325,7 @@ export function registerIpcHandlers(
 		// is indistinguishable from a take with no click, so the zooms are silently
 		// skipped.
 		await writePendingCursorTelemetry(screenVideoPath);
+		attachCaptureRegion(session);
 		setCurrentRecordingSessionState(session);
 		currentProjectPath = null;
 
@@ -4260,7 +4505,8 @@ export function registerIpcHandlers(
 				return { success: false, message: "Invalid path" };
 			}
 			const lower = filePath.toLowerCase();
-			if (!lower.endsWith(".mp4") && !lower.endsWith(".gif")) {
+			// `.wav`: the separate click-sound file of "Export video + click sounds".
+			if (!lower.endsWith(".mp4") && !lower.endsWith(".gif") && !lower.endsWith(".wav")) {
 				return { success: false, message: "Invalid file type" };
 			}
 
@@ -4652,11 +4898,7 @@ export function registerIpcHandlers(
 				: null;
 
 			if (trustedExistingProjectPath) {
-				await fs.writeFile(
-					trustedExistingProjectPath,
-					JSON.stringify(projectData, null, 2),
-					"utf-8",
-				);
+				await writeFileAtomic(trustedExistingProjectPath, JSON.stringify(projectData, null, 2));
 				currentProjectPath = trustedExistingProjectPath;
 				return {
 					success: true,
@@ -4692,12 +4934,16 @@ export function registerIpcHandlers(
 				};
 			}
 
-			await fs.writeFile(result.filePath, JSON.stringify(projectData, null, 2), "utf-8");
-			currentProjectPath = result.filePath;
+			// A name typed without the extension (Linux dialogs do not append one) still gets it.
+			const targetPath = result.filePath.toLowerCase().endsWith(`.${PROJECT_FILE_EXTENSION}`)
+				? result.filePath
+				: `${result.filePath}.${PROJECT_FILE_EXTENSION}`;
+			await writeFileAtomic(targetPath, JSON.stringify(projectData, null, 2));
+			currentProjectPath = targetPath;
 
 			return {
 				success: true,
-				path: result.filePath,
+				path: targetPath,
 				message: "Project saved successfully",
 			};
 		} catch (error) {

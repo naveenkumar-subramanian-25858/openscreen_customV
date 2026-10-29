@@ -131,6 +131,7 @@ const DECLARED: WritePath[] = [
 	// It sits in `runLoadedMetadataWrite` rather than the handler because the handler
 	// only puts it on the write queue — the write itself, and its deadline, are there.
 	w("src/components/ai-edition/NewEditorShell.tsx", "runLoadedMetadataWrite", "save", "automatic"),
+	w("src/components/ai-edition/NewEditorShell.tsx", "runLoadedMetadataWrite", "save", "automatic"),
 	// Auto-zoom regions suggested for a freshly imported recording. `history: true`
 	// on purpose: unlike the probed duration above, this is a suggestion the user is
 	// meant to be able to undo.
@@ -144,6 +145,7 @@ const DECLARED: WritePath[] = [
 	w("src/components/ai-edition/NewEditorShell.tsx", "handleRenameProject", "save", "gesture"),
 	// Ctrl+S / File > Save.
 	w("src/components/ai-edition/NewEditorShell.tsx", "handleSave", "save", "gesture"),
+	w("src/components/ai-edition/NewEditorShell.tsx", "handleSaveAs", "save", "gesture"),
 	// A word typed into the transcript pane, and the deletion of one. Both are the user's
 	// own edits to the transcript; neither touches the timeline.
 	w("src/components/ai-edition/NewEditorShell.tsx", "handleInsertWord", "save", "gesture"),

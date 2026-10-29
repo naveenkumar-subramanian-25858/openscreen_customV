@@ -34,7 +34,8 @@
 			"increaseFontSize": "フォントサイズを大きくする",
 			"mirror": "左右反転",
 			"mirrorTip": "テキストを左右反転し、鏡越しに読めるようにします"
-		}
+		},
+		"recordRegion": "Record a region of the screen"
 	},
 	"audio": {
 		"systemAudio": "システム音声",
@@ -153,5 +154,14 @@
 			"screenRequired": "録画には画面収録が必要です。",
 			"ready": "準備が整いました。"
 		}
+	},
+	"regionSelector": {
+		"hint": "Drag to select the area to record. Esc to cancel.",
+		"ratioWidth": "Ratio width",
+		"ratioHeight": "Ratio height",
+		"lockRatio": "Lock aspect ratio",
+		"width": "Width in pixels",
+		"height": "Height in pixels",
+		"confirm": "Record this area"
 	}
 }

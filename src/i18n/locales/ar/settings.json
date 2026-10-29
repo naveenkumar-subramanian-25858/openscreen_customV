@@ -351,7 +351,13 @@
 		"done": "تم",
 		"ratio": "النسبة",
 		"cropVideo": "اقتصاص الفيديو",
-		"lockAspectRatio": "قفل نسبة العرض إلى الارتفاع"
+		"lockAspectRatio": "قفل نسبة العرض إلى الارتفاع",
+		"customRatio": "Custom ratio",
+		"customRatioWidth": "Custom ratio width",
+		"customRatioHeight": "Custom ratio height",
+		"customRatioApply": "Use ratio",
+		"customRatioActive": "Crop locked to {{w}}:{{h}}",
+		"customRatioHint": "Type any W:H to crop to it"
 	},
 	"zoom": {
 		"position": {

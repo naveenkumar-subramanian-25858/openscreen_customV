@@ -34,7 +34,8 @@
 			"increaseFontSize": "Tăng cỡ chữ",
 			"mirror": "Lật ngang",
 			"mirrorTip": "Lật văn bản theo chiều ngang để đọc qua gương"
-		}
+		},
+		"recordRegion": "Record a region of the screen"
 	},
 	"audio": {
 		"systemAudio": "Âm thanh hệ thống",
@@ -153,5 +154,14 @@
 			"screenRequired": "Cần quyền ghi màn hình để ghi.",
 			"ready": "Mọi thứ đã sẵn sàng."
 		}
+	},
+	"regionSelector": {
+		"hint": "Drag to select the area to record. Esc to cancel.",
+		"ratioWidth": "Ratio width",
+		"ratioHeight": "Ratio height",
+		"lockRatio": "Lock aspect ratio",
+		"width": "Width in pixels",
+		"height": "Height in pixels",
+		"confirm": "Record this area"
 	}
 }

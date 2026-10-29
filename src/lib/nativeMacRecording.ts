@@ -16,6 +16,8 @@ export type NativeMacRecordingRequest = {
 		displayId?: number;
 		windowId?: number;
 		bounds?: Rectangle;
+		/** Display captures: record only this part, 0..1 fractions of the display. */
+		cropRegion?: { x: number; y: number; width: number; height: number };
 	};
 	video: {
 		fps: number;

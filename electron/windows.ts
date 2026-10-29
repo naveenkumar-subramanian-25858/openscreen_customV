@@ -933,3 +933,54 @@ export function createRunnerWindow(windowType: string): BrowserWindow {
 	}
 	return win;
 }
+
+/**
+ * Full-display transparent overlay for dragging out a capture region. Covers the
+ * chosen display exactly. Kept out of the recording by `setContentProtection` where that
+ * works, and by window id in the macOS helper everywhere else (see
+ * `CONTENT_PROTECTION_BREAKS_DISPLAY`).
+ */
+export function createRegionSelectorWindow(display: Electron.Display): BrowserWindow {
+	const { x, y, width, height } = display.bounds;
+
+	const win = new BrowserWindow({
+		x,
+		y,
+		width,
+		height,
+		frame: false,
+		transparent: true,
+		backgroundColor: "#00000000",
+		resizable: false,
+		movable: false,
+		alwaysOnTop: true,
+		skipTaskbar: true,
+		hasShadow: false,
+		roundedCorners: false,
+		fullscreenable: false,
+		webPreferences: {
+			preload: path.join(__dirname, "preload.mjs"),
+			additionalArguments: [ASSET_BASE_URL_ARG],
+			nodeIntegration: false,
+			contextIsolation: true,
+			backgroundThrottling: false,
+		},
+	});
+
+	applyContentProtection(win, "Region");
+	// "screen-saver" floats above the macOS menu bar and Dock.
+	win.setAlwaysOnTop(true, "screen-saver");
+	// Frameless windows can be nudged by the OS; pin to the exact display bounds.
+	win.setBounds({ x, y, width, height });
+	followAcrossSpaces(win);
+
+	if (VITE_DEV_SERVER_URL) {
+		win.loadURL(VITE_DEV_SERVER_URL + "?windowType=region-selector");
+	} else {
+		win.loadFile(path.join(RENDERER_DIST, "index.html"), {
+			query: { windowType: "region-selector" },
+		});
+	}
+
+	return win;
+}

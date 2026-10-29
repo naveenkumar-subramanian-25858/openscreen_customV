@@ -10,7 +10,9 @@ import { Download, FileVideo, FolderOpen, Loader2, Star } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useScopedT } from "@/contexts/I18nContext";
+import { useClickSound } from "@/hooks/useClickSound";
 import { prepareClickSound } from "@/lib/ai-edition/clickSound";
+import { renderClickSoundWav } from "@/lib/ai-edition/clickSoundExport";
 import {
 	collectEffectiveClipDims,
 	type Dims,
@@ -158,11 +160,12 @@ interface ExportDialogProps {
 export function ExportDialog({ open, onClose, document }: ExportDialogProps) {
 	const t = useScopedT("editor");
 	const ts = useScopedT("settings");
+	const clickSound = useClickSound();
 	// No usable GPU: the export still applies every effect (output is identical), it
 	// just runs on the software encoder and takes minutes instead of seconds.
 	const cpuCompositor = useIsCpuCompositor();
 	const [format, setFormat] = useState<ExportFormat>("mp4");
-	const [quality, setQuality] = useState<ExportQuality>("good");
+	const [quality, setQuality] = useState<ExportQuality>("source");
 	const [fps, setFps] = useState<Mp4FrameRate>(60);
 	const [gifFrameRate, setGifFrameRate] = useState<GifFrameRate>(15);
 	const [gifSize, setGifSize] = useState<GifSizePreset>("medium");
@@ -329,7 +332,9 @@ export function ExportDialog({ open, onClose, document }: ExportDialogProps) {
 		}
 	};
 
-	const handleStart = async () => {
+	// `separateClicks`: the video without the click sound mixed in, plus the clicks as a WAV next
+	// to it. Plain Export keeps doing what it always did.
+	const handleStart = async (separateClicks = false) => {
 		if (!document || activeExport.current || phase === "configuring") return;
 		const generation = ++pickerGeneration.current;
 		const asset = primaryAsset;
@@ -422,7 +427,10 @@ export function ExportDialog({ open, onClose, document }: ExportDialogProps) {
 				// so the clip list needs no pre-rendering pass.
 				const exportClips = clips;
 
-				const sceneJson = JSON.stringify(sceneDesc);
+				// The compositor mixes the clicks in whenever the scene carries them; leaving the block
+				// out is what makes the video clean for the separate file.
+				const { clickSound: _clicks, ...sceneWithoutClicks } = sceneDesc;
+				const sceneJson = JSON.stringify(separateClicks ? sceneWithoutClicks : sceneDesc);
 				const outDims = tierOutputDims(quality);
 				if (exportClips.length === 0) {
 					throw new Error(t("exportDialog.nothingToExport"));
@@ -458,6 +466,30 @@ export function ExportDialog({ open, onClose, document }: ExportDialogProps) {
 								job.id,
 							);
 				if (activeExport.current !== job) return;
+				let clicksPath: string | null = null;
+				if (separateClicks && format === "mp4") {
+					// After the video, so a failed video export never leaves a lone WAV behind.
+					setPhase("writing");
+					// The video is already saved by now, so a click file that cannot be written is
+					// reported on its own instead of turning a good export into a failed one.
+					try {
+						const wav = await renderClickSoundWav(document, stats.videoDurationS);
+						if (wav) {
+							const target = `${pickedPath.replace(/\.[^./\\]+$/, "")}-clicks.wav`;
+							const written = await window.electronAPI?.writeExportToPath?.(wav, target);
+							if (!written?.success) {
+								throw new Error(written?.message ?? t("exportDialog.clickSoundsFailed"));
+							}
+							clicksPath = target;
+						}
+					} catch (clickError) {
+						console.error("[export] click sounds file failed:", clickError);
+						toast.error(t("exportDialog.clickSoundsFailed"), {
+							description: clickError instanceof Error ? clickError.message : String(clickError),
+						});
+					}
+					if (activeExport.current !== job) return;
+				}
 				setSavedPath(pickedPath);
 				setPhase("done");
 				// Reported after the export succeeded, so a cancelled or failed run never counts.
@@ -474,7 +506,7 @@ export function ExportDialog({ open, onClose, document }: ExportDialogProps) {
 					})
 					.catch((err) => console.warn("[export] star prompt check failed:", err));
 				toast.success(t("exportDialog.exportedVideo"), {
-					description: `${pickedPath} · ${formatHms(stats.videoDurationS)} ${t("exportDialog.exportedVideoOf")} ${formatHms(stats.wallS)}`,
+					description: `${pickedPath}${clicksPath ? ` + ${clicksPath}` : ""} · ${formatHms(stats.videoDurationS)} ${t("exportDialog.exportedVideoOf")} ${formatHms(stats.wallS)}`,
 					action: {
 						label: t("exportDialog.showInFolder"),
 						// The toast is gone in five seconds; the done panel below keeps the same
@@ -723,10 +755,22 @@ export function ExportDialog({ open, onClose, document }: ExportDialogProps) {
 						{cancelPending && <Loader2 size={14} className="animate-spin" />}
 						{phase === "done" ? t("exportDialog.close") : t("exportDialog.cancel")}
 					</button>
+					{format === "mp4" && clickSound.hasClicks && (
+						<button
+							type="button"
+							data-testid="export-video-and-clicks"
+							className={`${styles.btn} ${styles.btnSecondary}`}
+							onClick={() => handleStart(true)}
+							disabled={isBusy || !document}
+							title={t("exportDialog.exportSeparateClicksTip")}
+						>
+							{t("exportDialog.exportSeparateClicks")}
+						</button>
+					)}
 					<button
 						type="button"
 						className={`${styles.btn} ${styles.btnPrimary}`}
-						onClick={handleStart}
+						onClick={() => handleStart()}
 						disabled={isBusy || !document}
 					>
 						{isBusy ? (

@@ -614,6 +614,18 @@ function centeredFitPct(fr: number): { x: number; y: number; w: number; h: numbe
 	return { x: (100 - w) / 2, y: 0, w, h: 100 };
 }
 
+const CUSTOM_RATIO = "custom";
+
+/** A typed W:H as width/height, or null when it is not a usable ratio. */
+function parseCustomRatio(w: string, h: string): number | null {
+	const width = Number.parseFloat(w);
+	const height = Number.parseFloat(h);
+	if (!(width > 0) || !(height > 0)) return null;
+	const ratio = width / height;
+	// Beyond these the crop would be a hair, not a frame.
+	return ratio >= 0.05 && ratio <= 20 ? ratio : null;
+}
+
 const MIN_PCT = 4;
 const clampPct = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
@@ -725,6 +737,10 @@ export function EditClipModal({
 	const [cropWPct, setCropWPct] = useState(100);
 	const [cropHPct, setCropHPct] = useState(100);
 	const [cropRatio, setCropRatio] = useState("free");
+	// A ratio typed by hand, for the ones the presets do not have. `cropRatio` reads "custom"
+	// while it is the one in force.
+	const [customRatioW, setCustomRatioW] = useState("");
+	const [customRatioH, setCustomRatioH] = useState("");
 	const [cropTouched, setCropTouched] = useState(false);
 	// Source video's real pixel aspect ratio (width/height) — needed to convert
 	// between a preset's visual ratio (e.g. 16/9) and the crop region's
@@ -902,10 +918,27 @@ export function EditClipModal({
 		setCropHPct(fit.h);
 	};
 
+	// Frames the crop at the typed ratio, exactly as a preset does: the largest centred
+	// rectangle of that ratio, which the handles then keep.
+	const applyCustomRatio = () => {
+		if (!customRatioValue) return;
+		setCropTouched(true);
+		setCropRatio(CUSTOM_RATIO);
+		const fit = centeredFitPct(customRatioValue / videoAspectRatio);
+		setCropXPct(fit.x);
+		setCropYPct(fit.y);
+		setCropWPct(fit.w);
+		setCropHPct(fit.h);
+	};
+
 	// Fraction-space width/height ratio the crop is locked to while a preset is
 	// active (null for "Free"). The resize handles honor it, so the user can
 	// move/scale the crop but never change its aspect ratio.
-	const activePresetRatio = CROP_RATIOS.find((c) => c.value === cropRatio)?.ratio ?? null;
+	const customRatioValue = parseCustomRatio(customRatioW, customRatioH);
+	const activePresetRatio =
+		cropRatio === CUSTOM_RATIO
+			? customRatioValue
+			: (CROP_RATIOS.find((c) => c.value === cropRatio)?.ratio ?? null);
 	const lockedFractionRatio = activePresetRatio ? activePresetRatio / videoAspectRatio : null;
 
 	// Drag the whole crop region (keeps size, moves x/y).
@@ -1236,6 +1269,57 @@ export function EditClipModal({
 							onChange={handleCropRatioChange}
 						/>
 					</div>
+				</div>
+				<div
+					data-testid="crop-custom-ratio"
+					style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}
+				>
+					<span className={styles.fieldLabel}>{ts("crop.customRatio")}</span>
+					<div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+						<input
+							type="number"
+							min={0}
+							step="any"
+							inputMode="decimal"
+							aria-label={ts("crop.customRatioWidth")}
+							placeholder="W"
+							value={customRatioW}
+							onChange={(e) => setCustomRatioW(e.target.value)}
+							onKeyDown={(e) => e.key === "Enter" && applyCustomRatio()}
+							className={styles.control}
+							style={{ width: 72 }}
+						/>
+						<span style={{ color: "var(--muted)" }}>:</span>
+						<input
+							type="number"
+							min={0}
+							step="any"
+							inputMode="decimal"
+							aria-label={ts("crop.customRatioHeight")}
+							placeholder="H"
+							value={customRatioH}
+							onChange={(e) => setCustomRatioH(e.target.value)}
+							onKeyDown={(e) => e.key === "Enter" && applyCustomRatio()}
+							className={styles.control}
+							style={{ width: 72 }}
+						/>
+						<button
+							type="button"
+							className={`${styles.btn} ${styles.btnSecondary}`}
+							onClick={applyCustomRatio}
+							disabled={!customRatioValue}
+						>
+							{ts("crop.customRatioApply")}
+						</button>
+					</div>
+					<span
+						data-testid="crop-custom-ratio-status"
+						style={{ font: "500 12px/1.4 var(--font-body)", color: "var(--muted)" }}
+					>
+						{cropRatio === CUSTOM_RATIO
+							? ts("crop.customRatioActive", { w: customRatioW, h: customRatioH })
+							: ts("crop.customRatioHint")}
+					</span>
 				</div>
 			</div>
 		</ModalShell>

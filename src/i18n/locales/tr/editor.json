@@ -92,6 +92,7 @@
 		"openProject": "Proje aç",
 		"newProject": "Yeni proje",
 		"saveProject": "Projeyi kaydet",
+		"saveProjectAs": "Save project as…",
 		"unsaved": "Kaydedilmedi",
 		"saved": "Kaydedildi",
 		"switchToLightTheme": "Açık temaya geç",
@@ -215,7 +216,10 @@
 		"failedToWriteFile": "Dosya yazılamadı",
 		"qualityUpscaleWarning": "Upscale",
 		"exportedVideoOf": "video şu sürede dışa aktarıldı:",
-		"nothingToExport": "Dışa aktarılacak bir şey yok — zaman çizelgesi boş."
+		"nothingToExport": "Dışa aktarılacak bir şey yok — zaman çizelgesi boş.",
+		"exportSeparateClicks": "Video + click sounds (2 files)",
+		"exportSeparateClicksTip": "Save the video without the click sound mixed in, plus the mouse clicks as a separate WAV file next to it.",
+		"clickSoundsFailed": "The video was saved, but the click sounds file could not be written."
 	},
 	"inspector": {
 		"resetFocusPoint": "Odak noktasını sıfırla",
