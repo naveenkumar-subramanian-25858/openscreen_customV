@@ -11,7 +11,12 @@ import type { CropRegion } from "@/components/video-editor/types";
 import { useScopedT } from "@/contexts/I18nContext";
 import type { AxcutClip } from "@/lib/ai-edition/schema";
 import { formatSeconds } from "@/lib/ai-edition/timeline/format";
-import { cropDraftFromRegion, cropDraftToPct, previewBoxStyle } from "./cropDraft";
+import {
+	cropDraftFromRegion,
+	cropDraftToPct,
+	previewBoxStyle,
+	snapCropToPixels,
+} from "./cropDraft";
 import styles from "./NewEditorShell.module.css";
 import { ChoiceRow } from "./RightPanes";
 import type { VideoSource } from "./VirtualPreview";
@@ -747,6 +752,8 @@ export function EditClipModal({
 	// fraction-of-frame width/height. 16/9 is just a placeholder until the
 	// crop <video>'s real metadata loads (see the effect below).
 	const [videoAspectRatio, setVideoAspectRatio] = useState(16 / 9);
+	// The preview video's own pixel size, which the crop is snapped to whole pixels against.
+	const [videoPx, setVideoPx] = useState<{ width: number; height: number } | null>(null);
 	const cropFrameRef = useRef<HTMLDivElement | null>(null);
 	const cropVideoRef = useRef<HTMLVideoElement | null>(null);
 	// The frame the crop is framed on, on the source clock like the trim. Local to this
@@ -807,12 +814,14 @@ export function EditClipModal({
 		// below refills them (immediately, when this clip's metadata is already
 		// loaded).
 		setVideoAspectRatio(16 / 9);
+		setVideoPx(null);
 		const v = cropVideoRef.current;
 		if (!v) return;
 		const onMetadata = () => {
 			v.pause();
 			if (v.videoWidth > 0 && v.videoHeight > 0) {
 				setVideoAspectRatio(v.videoWidth / v.videoHeight);
+				setVideoPx({ width: v.videoWidth, height: v.videoHeight });
 			}
 		};
 		if (v.readyState >= 1) onMetadata();
@@ -1041,9 +1050,13 @@ export function EditClipModal({
 			width: Math.max(0.01, Math.min(1, cropWPct / 100)),
 			height: Math.max(0.01, Math.min(1, cropHPct / 100)),
 		};
+		const snapped =
+			cropTouched && videoPx
+				? snapCropToPixels(nextCrop, videoPx, activePresetRatio ?? null)
+				: nextCrop;
 		const isIdentity =
-			nextCrop.x === 0 && nextCrop.y === 0 && nextCrop.width === 1 && nextCrop.height === 1;
-		onApply(draftStart, draftEnd, cropTouched ? (isIdentity ? null : nextCrop) : undefined);
+			snapped.x === 0 && snapped.y === 0 && snapped.width === 1 && snapped.height === 1;
+		onApply(draftStart, draftEnd, cropTouched ? (isIdentity ? null : snapped) : undefined);
 		onClose();
 	};
 

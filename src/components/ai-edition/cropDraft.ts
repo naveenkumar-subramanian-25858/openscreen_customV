@@ -60,3 +60,57 @@ export function previewBoxStyle(videoAspectRatio: number): {
 		overflow: "hidden",
 	};
 }
+
+/** `ratio` as the smallest whole W:H that reproduces it (17/10 -> 17:10), or null for none. */
+function wholeRatio(ratio: number): { w: number; h: number } | null {
+	for (let h = 1; h <= 100; h++) {
+		const w = Math.round(ratio * h);
+		if (w > 0 && Math.abs(w / h - ratio) < 1e-6 * ratio) return { w, h };
+	}
+	return null;
+}
+
+/**
+ * Snaps a crop (frame fractions) to whole, even source pixels so the clip's size is exactly what
+ * the crop says, not a rounding of it. Left as fractions, a 17:10 crop of a 3072x1922 frame is
+ * 3072x1807.07: the export then rounds that to 3072x1806, a shape that is no longer 17:10. With a
+ * `ratio` the result is the largest whole-pixel rectangle of exactly that ratio inside the crop
+ * (3060x1800); without one it is the crop rounded to even pixels. Centred on the original crop.
+ */
+export function snapCropToPixels(
+	crop: CropDraft,
+	video: { width: number; height: number },
+	ratio: number | null,
+): CropDraft {
+	if (!(video.width > 0) || !(video.height > 0)) return crop;
+	const boxW = crop.width * video.width;
+	const boxH = crop.height * video.height;
+	let pxW: number;
+	let pxH: number;
+	const whole = ratio ? wholeRatio(ratio) : null;
+	if (whole) {
+		// Both sides must be even for 4:2:0 video, so a ratio with an odd side steps twice as far.
+		const step = whole.w % 2 === 1 || whole.h % 2 === 1 ? 2 : 1;
+		const n = Math.floor(Math.min(boxW / (whole.w * step), boxH / (whole.h * step)) + 1e-9);
+		if (n < 1) return crop;
+		pxW = whole.w * step * n;
+		pxH = whole.h * step * n;
+	} else {
+		pxW = Math.min(video.width, Math.max(2, Math.round(boxW / 2) * 2));
+		pxH = Math.min(video.height, Math.max(2, Math.round(boxH / 2) * 2));
+	}
+	const left = Math.min(
+		video.width - pxW,
+		Math.max(0, Math.round((crop.x + crop.width / 2) * video.width - pxW / 2)),
+	);
+	const top = Math.min(
+		video.height - pxH,
+		Math.max(0, Math.round((crop.y + crop.height / 2) * video.height - pxH / 2)),
+	);
+	return {
+		x: left / video.width,
+		y: top / video.height,
+		width: pxW / video.width,
+		height: pxH / video.height,
+	};
+}
