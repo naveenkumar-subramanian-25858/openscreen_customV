@@ -15,6 +15,7 @@ This is a customized fork of [OpenScreen](https://github.com/getopenscreen/opens
 - The region is cropped **at capture time** at native (Retina) resolution, so there is no full-screen recording to crop later.
 - Microphone, system audio and webcam overlay.
 - Cursor and clicks are recorded separately, so you can restyle them (size, smoothing, click effects) in the editor.
+- **Click rings:** each left click draws an expanding, fading ring (like the Apple recorder). Rings are regions on a **Click** lane of the timeline: move, resize, delete or add them, and set size, opacity, colour and duration for the project or per ring. They appear in the preview and in exports (macOS only for now).
 - A "Maximum quality" capture default: high bitrate H.264, native resolution up to 8K.
 
 **Editing**
@@ -41,7 +42,13 @@ npm run build:mac
 
 The app is built into `release/`. Drag `Openscreen.app` into `/Applications`.
 
-On first launch, open **System Settings > Privacy & Security** and grant **Screen Recording** (and **Accessibility** for cursor tracking), then relaunch the app.
+**Installing a `.dmg` on another Mac:** the app is not signed by Apple, so macOS blocks it the first time ("can't be opened"). After dragging it to `/Applications`, run this once, then open it:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Openscreen.app
+```
+
+On first launch, open **System Settings > Privacy & Security** and grant **Screen Recording**, then relaunch the app. Accessibility is optional: it is never requested, and if you have already granted it the cursor shape (arrow, text, hand) is detected more accurately.
 
 To run in development mode instead: `npm run dev`.
 
@@ -57,7 +64,9 @@ Windows and Linux: build with `npm run build:win` or the Linux scripts in `packa
 
 ## Troubleshooting
 
-- **Can't record / permission prompt keeps appearing:** grant Screen Recording in System Settings, then fully quit and relaunch the app.
+- **"Openscreen can't be opened" / "damaged" on a downloaded build:** run `xattr -dr com.apple.quarantine /Applications/Openscreen.app`, then open it again.
+- **Can't record / permission prompt keeps appearing:** grant Screen Recording in System Settings, then fully quit and relaunch the app. Builds signed ad hoc (no developer certificate) get a new identity on every rebuild, so macOS may ask again after each one.
+- **Accessibility turns itself off:** same cause, and harmless. Accessibility is optional and only refines cursor shapes; recordings and click rings don't need it.
 - **Recording stops with error -3805:** macOS dropped the capture connection, usually because the screen locked or slept mid-recording. Keep the display awake while recording.
 
 ## License
