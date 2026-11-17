@@ -633,6 +633,46 @@ export const shaderEffectRangeSchema = endGteStart(
 	"startMs",
 );
 
+// A click ring (the Apple-recorder-style pulse at a mouse press), clip-anchored like a zoom. `x`/`y`
+// are fractions of the SOURCE frame, the space the cursor sidecar is written in, so the compositor
+// places it through the same crop, zoom and tilt as the cursor. The span IS the animation: the ring
+// plays from `startMs` to `endMs`. `style` holds only what differs from the project's `clickEffects`.
+export const clickRegionSchema = endGteStart(
+	z.object({
+		id: z.string().min(1),
+		startMs: z.number().nonnegative(),
+		endMs: z.number().nonnegative(),
+		...clipAnchorShape,
+		x: z.number().min(0).max(1),
+		y: z.number().min(0).max(1),
+		style: z
+			.object({
+				color: z
+					.string()
+					.regex(/^#[0-9a-fA-F]{6}$/)
+					.optional(),
+				size: z.number().positive().max(10).optional(),
+				opacity: z.number().min(0).max(1).optional(),
+			})
+			.optional(),
+	}),
+	"endMs",
+	"startMs",
+);
+
+// The project-wide look of every click ring, and the switch that hides them all. Optional like
+// `shaderEffects`: a document without it renders the defaults (`resolveClickEffects`).
+export const clickEffectsSchema = z.object({
+	show: z.boolean().optional(),
+	color: z
+		.string()
+		.regex(/^#[0-9a-fA-F]{6}$/)
+		.optional(),
+	size: z.number().positive().max(10).optional(),
+	opacity: z.number().min(0).max(1).optional(),
+	durationMs: z.number().min(100).max(5000).optional(),
+});
+
 // External audio import (issue #350) — voiceover / BGM / SFX layered over the
 // programme. Unlike zoom/speed/annotation/trim, an audio track is NOT
 // clip-anchored: it floats over the whole timeline, addressed in RAW/document
@@ -740,6 +780,10 @@ const documentSchemaShape = z.object({
 	// an absent list as empty. An older build drops both keys when it saves.
 	shaderEffects: z.array(shaderEffectSchema).optional(),
 	shaderEffectRanges: z.array(shaderEffectRangeSchema).optional(),
+	// Click rings. `undefined` means "not read from the recording yet" (the editor seeds it once from
+	// the take's clicks); `[]` means the user has none, and is never seeded again.
+	clickRegions: z.array(clickRegionSchema).optional(),
+	clickEffects: clickEffectsSchema.optional(),
 	// Imported audio tracks (issue #350). Defaulted so every document written
 	// before this loads unchanged; an older build simply strips the key on save.
 	audioTracks: z.array(audioTrackSchema).default([]),
@@ -1373,6 +1417,8 @@ export type AxcutTimeline = z.infer<typeof timelineSchema>;
 export type AxcutTimelineOperation = z.infer<typeof timelineOperationSchema>;
 export type AxcutAnnotationRegion = z.infer<typeof annotationRegionSchema>;
 export type AxcutZoomRegion = z.infer<typeof zoomRegionSchema>;
+export type AxcutClickRegion = z.infer<typeof clickRegionSchema>;
+export type AxcutClickEffects = z.infer<typeof clickEffectsSchema>;
 export type AxcutCameraTrack = z.infer<typeof cameraTrackSchema>;
 export type AxcutAudioTrack = z.infer<typeof audioTrackSchema>;
 export type AxcutShaderEffect = z.infer<typeof shaderEffectSchema>;

@@ -257,7 +257,7 @@ describe("useScreenRecorder native macOS start warnings", () => {
 		);
 	});
 
-	it("continues recording with limited cursor effects when Accessibility is pending", async () => {
+	it("continues recording without asking for Accessibility when it is not granted", async () => {
 		api.getRecordingPrefs.mockResolvedValue({
 			micEnabled: false,
 			micDeviceId: null,
@@ -287,24 +287,12 @@ describe("useScreenRecorder native macOS start warnings", () => {
 		expect(api.requestNativeMacCursorAccess).toHaveBeenCalledOnce();
 		expect(api.startNativeMacRecording).toHaveBeenCalledOnce();
 		expect(view.result.current.recording).toBe(true);
-		expect(toast.warning).toHaveBeenCalledWith(
-			"recording.cursorAccessibilityUnavailable",
-			expect.objectContaining({
-				action: expect.objectContaining({ label: "permissions.actions.openSettings" }),
-			}),
-		);
-		const warningOptions = vi.mocked(toast.warning).mock.calls.at(-1)?.[1] as
-			| { action?: { onClick?: () => void } }
-			| undefined;
-
-		await act(async () => {
-			warningOptions?.action?.onClick?.();
-		});
-
-		expect(openAccessibilitySettings).toHaveBeenCalledWith("accessibility");
+		// Accessibility is never asked for: no toast, no Settings shortcut.
+		expect(toast.warning).not.toHaveBeenCalled();
+		expect(openAccessibilitySettings).not.toHaveBeenCalled();
 	});
 
-	it("shows the Accessibility warning once across repeated recording attempts", async () => {
+	it("never shows an Accessibility warning across repeated recording attempts", async () => {
 		api.getRecordingPrefs.mockResolvedValue({
 			micEnabled: false,
 			micDeviceId: null,
@@ -345,7 +333,7 @@ describe("useScreenRecorder native macOS start warnings", () => {
 
 		expect(api.requestNativeMacCursorAccess).toHaveBeenCalledTimes(2);
 		expect(api.startNativeMacRecording).toHaveBeenCalledOnce();
-		expect(toast.warning).toHaveBeenCalledOnce();
+		expect(toast.warning).not.toHaveBeenCalled();
 		expect(view.result.current.recording).toBe(true);
 	});
 

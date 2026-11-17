@@ -7,7 +7,8 @@
 		"addTrim": "トリムを追加：現在の再生位置で動画の一部を削除します",
 		"addAnnotation": "現在の再生位置にテキスト、矢印、画像、ぼかしを追加",
 		"addSpeed": "現在の再生位置に再生速度の変更を追加",
-		"addCameraFullscreen": "フルスクリーンカメラを追加：現在の再生位置でカメラを全画面表示します"
+		"addCameraFullscreen": "フルスクリーンカメラを追加：現在の再生位置でカメラを全画面表示します",
+		"addClick": "Add a click effect at the current time"
 	},
 	"hints": {
 		"pressZoom": "{{key}}キーを押してズームを追加",
@@ -96,7 +97,8 @@
 		"smartCutsNoSpeech": "音声が検出されませんでした",
 		"smartCutsFailed": "文字起こしに失敗しました — メディアから再試行してください",
 		"addAudioTooltip": "音声を追加",
-		"addedWord": "追加した単語:「{{word}}」— 音声はありません"
+		"addedWord": "追加した単語:「{{word}}」— 音声はありません",
+		"clickRing": "Click"
 	},
 	"audio": {
 		"addVoiceover": "ナレーションを追加",

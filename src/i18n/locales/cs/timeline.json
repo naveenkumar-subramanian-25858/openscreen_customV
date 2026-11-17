@@ -7,7 +7,8 @@
 		"addTrim": "Přidat oříznutí: odstraní část videa v aktuálním čase",
 		"addAnnotation": "Přidat text, šipku, obrázek nebo rozmazání v aktuálním čase",
 		"addSpeed": "Přidat změnu rychlosti v aktuálním čase",
-		"addCameraFullscreen": "Přidat Celou kameru: zobrazí kameru na celou obrazovku v aktuálním čase"
+		"addCameraFullscreen": "Přidat Celou kameru: zobrazí kameru na celou obrazovku v aktuálním čase",
+		"addClick": "Add a click effect at the current time"
 	},
 	"hints": {
 		"pressZoom": "Stiskněte {{key}} pro přidání přiblížení",
@@ -96,7 +97,8 @@
 		"smartCutsNoSpeech": "Řeč nebyla detekována",
 		"smartCutsFailed": "Přepisování selhalo, zkuste to znovu z Média",
 		"addAudioTooltip": "Přidat zvuk",
-		"addedWord": "Přidáno slovo: „{{word}}”, za ním není žádný zvuk"
+		"addedWord": "Přidáno slovo: „{{word}}”, za ním není žádný zvuk",
+		"clickRing": "Click"
 	},
 	"audio": {
 		"addVoiceover": "Přidat komentář",

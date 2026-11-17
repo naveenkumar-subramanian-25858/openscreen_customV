@@ -2864,6 +2864,26 @@ static float4 cursor_impact(float2 local, constant Layer &layer)
     return float4(layer.color.rgb * ring, a) * layer.color.a; // prémultiplié, ombre noire
 }
 
+// ============ Anneau de clic (mode 20) ============
+// Emplacements du cbuffer — miroir de `frame_geometry::click_ring_cbs`, qui en fait foi :
+//   src = (rayon de l'anneau px, épaisseur du trait px, opacité du trait, opacité du centre)
+//   fx  = (opacité de la lueur noire, sigma de la lueur px) ; color.rgb = teinte ; radius_px = AA px
+static float4 click_ring(float2 local, constant Layer &layer)
+{
+    float d = length(local - layer.quad_px * 0.5);
+    float x = abs(d - layer.src.x);
+    float aa = max(layer.radius_px, 0.5);
+    float half_w = layer.src.y * 0.5;
+    float ring = (1.0 - smoothstep(half_w - aa, half_w + aa, x)) * layer.src.z;
+    float inside = 1.0 - smoothstep(layer.src.x - half_w - aa, layer.src.x - half_w + aa, d);
+    float fill = inside * layer.src.w;
+    float cov = ring + fill * (1.0 - ring);
+    float sigma = max(layer.fx.y, 0.5);
+    float glow = layer.fx.x * exp(-x * x / (2.0 * sigma * sigma));
+    float a = cov + glow * (1.0 - cov);
+    return float4(layer.color.rgb * cov, a); // prémultiplié, lueur noire
+}
+
 // ============ Cadre d'APPAREIL modelé (mode 17) ============
 // Un portable, un téléphone ou un moniteur, modelés en VRAIE 3D autour du métrage : un corps qui
 // a une épaisseur, des arêtes chanfreinées et une lunette, dont la face écran tombe EXACTEMENT
@@ -3438,6 +3458,13 @@ fragment float4 ps_main(VSOut i [[stage_in]],
                         // par le repli du mode 18, qui garde texture(2) pour son rendu isolé.
                         texture2d<float, access::sample> texDof [[texture(5)]])
 {
+    // mode 20 : ANNEAU DE CLIC (`click_ring`). Testé tout en haut, hors de `LAYER_MODELS` : les
+    // branches suivantes n'ont pas de borne haute, et ce mode se compile dans la variante à plat.
+    if (layer.mode > 19.5)
+    {
+        return click_ring(i.local, layer);
+    }
+
     // mode 19 : VERRE À PLAT de Glass Lens (`cursor_glass`). Testé avant le mode 18, dont la
     // branche n'a pas de borne haute. C'est un modèle, compilé avec les modes 15 à 17.
     if (layer.mode > 18.5)

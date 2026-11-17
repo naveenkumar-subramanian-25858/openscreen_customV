@@ -3030,6 +3030,19 @@ impl Compositor {
             self.apply_shader_effect(cmd_buf, e, &self.rt, &fx_context(e))?;
         }
 
+        // --- anneaux de clic (mode 20) : sur le curseur, SOUS les annotations. Aucune passe sans
+        // région active : une scène sans `clickRegions` rend à l'octet près comme avant.
+        if let Some(scene) = scene_ref.as_ref().filter(|s| !s.click_regions.is_empty()) {
+            let rings = crate::frame_geometry::click_ring_cbs(&g, scene, [rw, rh], u_max, v_max, g.source_t);
+            if !rings.is_empty() {
+                let e = self.begin_pass(cmd_buf, &self.rt, None, &self.pipeline_main)?;
+                for cb in &rings {
+                    self.draw_solid(e, cb);
+                }
+                e.end_encoding();
+            }
+        }
+
         // --- annotations : calque le plus haut, ancré sur le rect ÉCRAN SANS ZOOM ---
         // `s_ann`, pas `s_dst` : le zoom vit dans la boîte depuis l'issue #179, donc `s_dst`
         // grandit avec lui et emmenait annotations et sous-titres dans le mouvement. Le flou de
@@ -5109,6 +5122,44 @@ mod tests {
         assert_eq!(count(&text, [255, 255, 255]), 0, "la flèche est passée par l'effet `text`");
         assert_eq!(count(&text, [0, 255, 0]), arrow_px, "et elle seule est verte");
         assert_eq!([text[0], text[1], text[2]], [255, 0, 0], "l'image dessous est intacte");
+    }
+
+    /// Un anneau de clic (mode 20) se dessine pendant sa région et seulement alors : même scène avec
+    /// et sans `clickRegions`, au milieu de l'animation, après sa fin, et avec une liste vide. Les
+    /// deux derniers cas doivent rendre à l'octet près comme la scène sans anneau.
+    #[test]
+    fn a_click_ring_draws_during_its_region_and_nowhere_else() {
+        let Ok(gpu) = crate::d3d::Gpu::create(false) else {
+            eprintln!("pas de device Metal — test sauté");
+            return;
+        };
+        let render = |rings: Option<serde_json::Value>, t: f32| {
+            let mut json = shader_fx_json(serde_json::json!([]), serde_json::json!([]));
+            if let Some(rings) = rings {
+                json["clickRegions"] = rings;
+            }
+            let comp = super::Compositor::new_sized(&gpu, 320, 180).expect("compositeur");
+            comp.set_scene(Some(Scene::from_json(&json.to_string()).expect("scène")));
+            compose_fx_at(&comp, t)
+        };
+        let ring = serde_json::json!([{
+            "id": "k", "clipIndex": 0, "startSec": 1.5, "endSec": 2.5, "x": 0.5, "y": 0.5,
+            "color": "#ffffff", "size": 2.0, "opacity": 1.0,
+        }]);
+        let changed = |a: &[u8], b: &[u8]| a.chunks_exact(4).zip(b.chunks_exact(4)).filter(|(p, q)| p != q).count();
+
+        let bare = render(None, 2.0);
+        let during = render(Some(ring.clone()), 2.0);
+        let drawn = changed(&bare, &during);
+        assert!(drawn > 100, "l'anneau est dessiné pendant sa région : {drawn} px changés");
+
+        // Un anneau est centré sur son point : le centre du cadre n'est pas touché par le trait.
+        let after = render(Some(ring.clone()), 3.0);
+        assert_eq!(bare, after, "rien après la fin de la région");
+        let before = render(Some(ring), 1.0);
+        assert_eq!(bare, before, "rien avant son début");
+        let empty = render(Some(serde_json::json!([])), 2.0);
+        assert_eq!(bare, empty, "une liste vide rend comme avant");
     }
 
     /// Calibre les paliers de coût : le surcoût par frame d'un effet qui lit `frame()` N fois,

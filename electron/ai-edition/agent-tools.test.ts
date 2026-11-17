@@ -1048,6 +1048,26 @@ describe("executeAgentTool", () => {
 		).toBe(false);
 	});
 
+	it("removeModifier removes a click ring by id", () => {
+		const base = fixtureDocument();
+		const clip = base.timeline.clips[0];
+		const ring = (id: string, s: number) => ({
+			id,
+			startMs: s * 1000,
+			endMs: (s + 0.5) * 1000,
+			clipId: clip.id,
+			sourceStartSec: s,
+			sourceEndSec: s + 0.5,
+			x: 0.5,
+			y: 0.5,
+		});
+		const doc = { ...base, clickRegions: [ring("click_a", 1), ring("click_b", 3)] };
+		const removed = executeAgentTool(doc, "removeModifier", JSON.stringify({ id: "click_a" }));
+		expect(removed.ok).toBe(true);
+		expect(JSON.parse(removed.resultJson)).toMatchObject({ kind: "click", removed: "click_a" });
+		expect(removed.document?.clickRegions?.map((r) => r.id)).toEqual(["click_b"]);
+	});
+
 	it("removeModifier resolves the kind from the id across zoom / speed / annotation / full-camera", () => {
 		const withZoom = executeAgentTool(
 			fixtureDocument(),

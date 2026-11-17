@@ -7,7 +7,8 @@
 		"addTrim": "إضافة قص: يزيل جزءًا من الفيديو عند الوقت الحالي",
 		"addAnnotation": "إضافة نص أو سهم أو صورة أو تمويه عند الوقت الحالي",
 		"addSpeed": "إضافة تغيير في السرعة عند الوقت الحالي",
-		"addCameraFullscreen": "إضافة كاميرا كاملة الشاشة: تعرض الكاميرا بملء الشاشة عند الوقت الحالي"
+		"addCameraFullscreen": "إضافة كاميرا كاملة الشاشة: تعرض الكاميرا بملء الشاشة عند الوقت الحالي",
+		"addClick": "Add a click effect at the current time"
 	},
 	"hints": {
 		"pressZoom": "اضغط {{key}} لإضافة تكبير",
@@ -96,7 +97,8 @@
 		"smartCutsNoSpeech": "لم يتم اكتشاف كلام",
 		"smartCutsFailed": "فشل النسخ — أعد المحاولة من قسم الوسائط",
 		"addAudioTooltip": "إضافة صوت",
-		"addedWord": "كلمة مضافة: \"{{word}}\" — لا صوت خلفها"
+		"addedWord": "كلمة مضافة: \"{{word}}\" — لا صوت خلفها",
+		"clickRing": "Click"
 	},
 	"audio": {
 		"addVoiceover": "إضافة تعليق صوتي",

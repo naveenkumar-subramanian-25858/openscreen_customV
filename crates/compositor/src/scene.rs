@@ -440,6 +440,41 @@ pub struct SceneAnnotationText {
     pub animation: Option<String>,
 }
 
+/// Une région « anneau de clic » : un anneau qui s'étend et s'éteint sur `start_sec..end_sec`
+/// (secondes source du clip, comme les annotations). `x`/`y` sont des fractions de la frame SOURCE,
+/// le repère de la piste curseur, donc l'anneau suit le zoom, le crop et l'échelle comme le curseur.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SceneClickRegion {
+    #[serde(default)]
+    pub id: String,
+    /// Voir `SceneZoomRegion::clip_index`.
+    #[serde(default)]
+    pub clip_index: Option<usize>,
+    pub start_sec: f64,
+    pub end_sec: f64,
+    pub x: f32,
+    pub y: f32,
+    #[serde(default = "click_color_default")]
+    pub color: String,
+    /// Multiple de la taille finale de référence (56 px à 1080p).
+    #[serde(default = "click_size_default")]
+    pub size: f32,
+    /// Opacité au pic, au début de l'animation.
+    #[serde(default = "click_opacity_default")]
+    pub opacity: f32,
+}
+
+fn click_color_default() -> String {
+    "#ffffff".to_string()
+}
+fn click_size_default() -> f32 {
+    1.0
+}
+fn click_opacity_default() -> f32 {
+    0.8
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SceneAnnotationFigure {
@@ -841,6 +876,9 @@ pub struct Scene {
     /// `#[serde(default)]` : champ ajouté après coup, absent des JSON de test existants.
     #[serde(default)]
     pub annotations: Vec<SceneAnnotation>,
+    /// Anneaux de clic. `#[serde(default)]` : absent = aucun, et le rendu est celui d'avant.
+    #[serde(default)]
+    pub click_regions: Vec<SceneClickRegion>,
     /// `#[serde(default)]` : champ ajouté après coup, absent des JSON de test existants.
     #[serde(default)]
     pub speed_regions: Vec<SceneSpeedRegion>,
@@ -914,6 +952,9 @@ impl Scene {
         });
         scene.annotations.retain(|annotation| {
             belongs(annotation.clip_index, annotation.start_sec, annotation.end_sec)
+        });
+        scene.click_regions.retain(|region| {
+            belongs(region.clip_index, region.start_sec, region.end_sec)
         });
         scene.shader_effects.retain(|effect| {
             belongs(effect.clip_index, effect.start_sec, effect.end_sec)
@@ -1055,6 +1096,21 @@ mod tests {
         // And a scene from before the field reads as no hits, not as a parse failure.
         assert!(SceneClickSound::default().hits.is_empty());
         assert!(serde_json::from_str::<SceneClickSound>("{}").unwrap().hits.is_empty());
+    }
+
+    #[test]
+    fn a_click_region_payload_reads_the_apps_camel_case_names_and_defaults() {
+        let r: SceneClickRegion = serde_json::from_str(
+            r#"{"id":"c","clipIndex":1,"startSec":1.0,"endSec":1.5,"x":0.25,"y":0.75}"#,
+        )
+        .unwrap();
+        assert_eq!((r.clip_index, r.start_sec, r.end_sec, r.x, r.y), (Some(1), 1.0, 1.5, 0.25, 0.75));
+        assert_eq!((r.color.as_str(), r.size, r.opacity), ("#ffffff", 1.0, 0.8));
+        let r: SceneClickRegion = serde_json::from_str(
+            r##"{"startSec":0,"endSec":1,"x":0,"y":0,"color":"#00aaff","size":2,"opacity":0.5}"##,
+        )
+        .unwrap();
+        assert_eq!((r.color.as_str(), r.size, r.opacity), ("#00aaff", 2.0, 0.5));
     }
 
     #[test]

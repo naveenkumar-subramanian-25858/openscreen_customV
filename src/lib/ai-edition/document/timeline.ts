@@ -51,7 +51,8 @@ export type RegionKind =
 	| "speed"
 	| "cameraFullscreen"
 	| "audio"
-	| "shaderEffect";
+	| "shaderEffect"
+	| "click";
 
 /** Length a clip is given before its media has been probed. Lives here, in the pure
  *  document layer, because that layer decides which clips are still waiting for a real
@@ -397,6 +398,15 @@ export function mapAllRegionCollections(
 			(document.shaderEffectRanges ?? []) as unknown as StoredRegion[],
 			"fxr",
 		) as unknown as AxcutDocument["shaderEffectRanges"],
+		// Absent stays absent: `undefined` means "not seeded from the recording yet", not "none".
+		...(document.clickRegions
+			? {
+					clickRegions: fn(
+						document.clickRegions as unknown as StoredRegion[],
+						"click",
+					) as unknown as AxcutDocument["clickRegions"],
+				}
+			: {}),
 		annotations: fn(
 			document.annotations as unknown as StoredRegion[],
 			"ann",
@@ -748,6 +758,7 @@ function anchoredRegionsOf(document: AxcutDocument): Array<{ id: string; clipId:
 		(legacy?.speedRegions as StoredRegion[] | undefined) ?? [],
 		(legacy?.cameraFullscreenRegions as StoredRegion[] | undefined) ?? [],
 		(document.shaderEffectRanges ?? []) as unknown as StoredRegion[],
+		(document.clickRegions ?? []) as unknown as StoredRegion[],
 	];
 	return collections
 		.flat()
@@ -1230,6 +1241,8 @@ export function removeRegion(document: AxcutDocument, kind: RegionKind, id: stri
 				...document,
 				shaderEffectRanges: dropPillById(document.shaderEffectRanges ?? [], id),
 			});
+		case "click":
+			return { ...document, clickRegions: dropPillById(document.clickRegions ?? [], id) };
 		default: {
 			// ponytail: exhaustive — TS errors here if a new RegionKind is added.
 			const exhaustive: never = kind;
@@ -1277,6 +1290,11 @@ const EDIT_REGIONS: Record<
 	shaderEffect: {
 		count: (d) => (d.shaderEffectRanges ?? []).length,
 		clear: (d) => ({ ...d, shaderEffectRanges: [], shaderEffects: [] }),
+	},
+	// Cleared to `[]`, not removed: an emptied list must not be seeded from the recording again.
+	click: {
+		count: (d) => (d.clickRegions ?? []).length,
+		clear: (d) => (d.clickRegions === undefined ? d : { ...d, clickRegions: [] }),
 	},
 };
 

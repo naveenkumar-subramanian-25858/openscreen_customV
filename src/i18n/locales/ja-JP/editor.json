@@ -245,7 +245,23 @@
 		"effectTierHeavy": "重い",
 		"effectTierVeryHeavy": "非常に重い",
 		"effectCode": "コード",
-		"copyEffectCode": "コードをコピー"
+		"copyEffectCode": "コードをコピー",
+		"clickEffects": {
+			"title": "Click effect",
+			"show": "Show click effects",
+			"size": "Ring size",
+			"opacity": "Opacity",
+			"duration": "Duration",
+			"color": "Ring color",
+			"add": "Add click at playhead",
+			"removeAll": "Remove all clicks"
+		},
+		"clickRegion": {
+			"title": "Click",
+			"positionX": "Position X",
+			"positionY": "Position Y",
+			"useProjectStyle": "Use project style"
+		}
 	},
 	"chat": {
 		"changeProvider": "プロバイダーを変更",

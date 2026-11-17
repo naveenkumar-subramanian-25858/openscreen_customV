@@ -53,6 +53,7 @@ const bridgeMocks = vi.hoisted(() => ({
 	addAsset: vi.fn(),
 	removeAsset: vi.fn(),
 	listProjects: vi.fn(),
+	getTelemetry: vi.fn(),
 }));
 
 vi.mock("@/native/client", () => ({
@@ -64,6 +65,15 @@ vi.mock("@/native/client", () => ({
 			addAsset: bridgeMocks.addAsset,
 			removeAsset: bridgeMocks.removeAsset,
 			listProjects: bridgeMocks.listProjects,
+		},
+		cursor: {
+			// Unstubbed (every suite but the click rings) the sidecar is unreadable, so the click
+			// seeding stays out of those suites' save counts.
+			getTelemetry: async (path: string) => {
+				const read = await bridgeMocks.getTelemetry(path);
+				if (read === undefined) throw new Error("no telemetry stubbed");
+				return read;
+			},
 		},
 	},
 }));
@@ -854,6 +864,7 @@ describe("useTimeline.clearTimeline", () => {
 		annotation: (tl) => tl.addAnnotation(),
 		speed: (tl) => tl.addSpeed(),
 		cameraFullscreen: (tl) => tl.addCameraFullscreen(),
+		click: (tl) => tl.addClick(),
 		// The editor has no effect lane: agents add effects, so this one is written as they do.
 		shaderEffect: async () => {
 			const doc = useProjectStore.getState().document as AxcutDocument;
@@ -901,6 +912,7 @@ describe("useTimeline.clearTimeline", () => {
 			speed: doc ? readSpeedRegions(doc).length : 0,
 			cameraFullscreen: legacy.cameraFullscreenRegions?.length ?? 0,
 			shaderEffect: doc?.shaderEffectRanges?.length ?? 0,
+			click: doc?.clickRegions?.length ?? 0,
 		};
 	};
 	const noRegions: Record<EditKind, number> = {
@@ -910,6 +922,7 @@ describe("useTimeline.clearTimeline", () => {
 		speed: 0,
 		cameraFullscreen: 0,
 		shaderEffect: 0,
+		click: 0,
 	};
 
 	// A project holding everything that is NOT an edit: two clips, a webcam, an imported
@@ -1070,6 +1083,7 @@ describe("useTimeline.clearTimeline", () => {
 			speed: 1,
 			cameraFullscreen: 1,
 			shaderEffect: 1,
+			click: 1,
 		});
 
 		await act(async () => {
@@ -1110,6 +1124,7 @@ describe("useTimeline.clearTimeline", () => {
 			speed: 1,
 			cameraFullscreen: 1,
 			shaderEffect: 1,
+			click: 1,
 		});
 
 		act(() => {
@@ -2776,5 +2791,131 @@ describe("useTimeline.addZoomsBulk reads the document at write time", () => {
 
 		expect(added).toBe(0);
 		expect(bridgeMocks.save).not.toHaveBeenCalled();
+	});
+});
+
+describe("useTimeline click rings", () => {
+	const ring = (id: string, s: number, e: number) => ({
+		id,
+		startMs: s * 1000,
+		endMs: e * 1000,
+		clipId: "clip_a",
+		sourceStartSec: s,
+		sourceEndSec: e,
+		x: 0.2,
+		y: 0.3,
+	});
+	const setDoc = (clickRegions?: ReturnType<typeof ring>[]) =>
+		useProjectStore.setState({
+			projectId: "proj_test",
+			document: { ...sampleDoc, ...(clickRegions ? { clickRegions } : {}) },
+			revision: 1,
+			status: "ready",
+			error: null,
+		});
+	const stored = () => useProjectStore.getState().document?.clickRegions;
+
+	beforeEach(() => {
+		useProjectStore.getState().clear();
+		for (const mock of Object.values(bridgeMocks)) mock.mockReset();
+		bridgeMocks.save.mockImplementation(async (doc: typeof sampleDoc) => ({
+			success: true,
+			document: doc,
+		}));
+		bridgeMocks.getTelemetry.mockResolvedValue([
+			{ timeMs: 1000, cx: 0.4, cy: 0.6, interactionType: "click" },
+			{ timeMs: 3000, cx: 0.1, cy: 0.1, interactionType: "right-click" },
+			{ timeMs: 9900, cx: 0.9, cy: 0.9, interactionType: "click" },
+		]);
+	});
+
+	afterEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("seeds an unset list once from the recorded left clicks, skipping the stop click", async () => {
+		setDoc();
+		renderTimeline();
+		await waitFor(() => expect(stored()).toHaveLength(1));
+		expect(stored()?.[0]).toMatchObject({ clipId: "clip_a", sourceStartSec: 1, x: 0.4, y: 0.6 });
+		expect(bridgeMocks.getTelemetry).toHaveBeenCalledWith("/tmp/screen.webm");
+	});
+
+	it("never seeds a list the user emptied", async () => {
+		setDoc([]);
+		renderTimeline();
+		await act(async () => {});
+		expect(stored()).toEqual([]);
+		expect(bridgeMocks.getTelemetry).not.toHaveBeenCalled();
+	});
+
+	it("leaves the list unset when the sidecar cannot be read", async () => {
+		const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+		bridgeMocks.getTelemetry.mockRejectedValue(new Error("nope"));
+		setDoc();
+		renderTimeline();
+		await waitFor(() => expect(spy).toHaveBeenCalled());
+		expect(stored()).toBeUndefined();
+		spy.mockRestore();
+	});
+
+	it("updateClick patches position and merges style, null clears an override", async () => {
+		setDoc([ring("click_1", 1, 1.5)]);
+		const { result } = renderTimeline();
+		await act(async () => {
+			await result.current.updateClick("click_1", {
+				x: 2,
+				y: -1,
+				style: { size: 2, color: "#00aaff" },
+			});
+		});
+		expect(stored()?.[0]).toMatchObject({ x: 1, y: 0, style: { size: 2, color: "#00aaff" } });
+		await act(async () => {
+			await result.current.updateClick("click_1", { style: { size: null, color: "red" } });
+		});
+		expect(stored()?.[0].style).toEqual({ color: "#00aaff" });
+		await act(async () => {
+			await result.current.updateClick("click_1", { style: { color: null } });
+		});
+		expect(stored()?.[0].style).toBeUndefined();
+	});
+
+	it("setClickEffects clamps size and duration and rejects a bad colour", async () => {
+		setDoc([]);
+		const { result } = renderTimeline();
+		await act(async () => {
+			await result.current.setClickEffects({ size: 99, durationMs: 1, color: "#00aaff" });
+		});
+		expect(useProjectStore.getState().document?.clickEffects).toEqual({
+			size: 4,
+			durationMs: 150,
+			color: "#00aaff",
+		});
+		await act(async () => {
+			await result.current.setClickEffects({ color: "blue" });
+		});
+		expect(useProjectStore.getState().document?.clickEffects?.color).toBe("#00aaff");
+	});
+
+	it("removeAllClicks writes [] and is undoable", async () => {
+		setDoc([ring("click_1", 1, 1.5), ring("click_2", 4, 4.5)]);
+		const { result } = renderTimeline();
+		await act(async () => {
+			await result.current.removeAllClicks();
+		});
+		expect(stored()).toEqual([]);
+		await act(async () => {
+			await undo();
+		});
+		expect(stored()).toHaveLength(2);
+	});
+
+	it("removeRegion deletes one ring and leaves the rest", async () => {
+		setDoc([ring("click_1", 1, 1.5), ring("click_2", 4, 4.5)]);
+		const { result } = renderTimeline();
+		await act(async () => {
+			await result.current.removeRegion("click", "click_1");
+		});
+		expect(stored()?.map((r) => r.id)).toEqual(["click_2"]);
 	});
 });

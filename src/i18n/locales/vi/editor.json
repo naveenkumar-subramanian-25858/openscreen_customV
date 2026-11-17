@@ -245,7 +245,23 @@
 		"effectTierHeavy": "Nặng",
 		"effectTierVeryHeavy": "Rất nặng",
 		"effectCode": "Mã",
-		"copyEffectCode": "Sao chép mã"
+		"copyEffectCode": "Sao chép mã",
+		"clickEffects": {
+			"title": "Click effect",
+			"show": "Show click effects",
+			"size": "Ring size",
+			"opacity": "Opacity",
+			"duration": "Duration",
+			"color": "Ring color",
+			"add": "Add click at playhead",
+			"removeAll": "Remove all clicks"
+		},
+		"clickRegion": {
+			"title": "Click",
+			"positionX": "Position X",
+			"positionY": "Position Y",
+			"useProjectStyle": "Use project style"
+		}
 	},
 	"chat": {
 		"changeProvider": "Đổi nhà cung cấp",

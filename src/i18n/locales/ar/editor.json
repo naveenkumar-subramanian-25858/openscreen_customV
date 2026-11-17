@@ -245,7 +245,23 @@
 		"effectTierHeavy": "ثقيل",
 		"effectTierVeryHeavy": "ثقيل جدًا",
 		"effectCode": "الشيفرة",
-		"copyEffectCode": "نسخ الشيفرة"
+		"copyEffectCode": "نسخ الشيفرة",
+		"clickEffects": {
+			"title": "Click effect",
+			"show": "Show click effects",
+			"size": "Ring size",
+			"opacity": "Opacity",
+			"duration": "Duration",
+			"color": "Ring color",
+			"add": "Add click at playhead",
+			"removeAll": "Remove all clicks"
+		},
+		"clickRegion": {
+			"title": "Click",
+			"positionX": "Position X",
+			"positionY": "Position Y",
+			"useProjectStyle": "Use project style"
+		}
 	},
 	"chat": {
 		"changeProvider": "تغيير المزوّد",

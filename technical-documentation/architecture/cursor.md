@@ -28,6 +28,16 @@ Glass cursors read the picture under them. When the cursor is the Prism Glow cry
 
 The cursor settings pane is `CursorPane` in `src/components/ai-edition/RightPanes.tsx`; the current v4 inspector exposes it through the cursor facet in `src/components/ai-edition/v4/FloatingInspector.tsx:57-63,1073`. It controls showing the cursor, clipping it to the canvas, theme, size, smoothing, motion blur, and click bounce. `RightPanes.tsx:1592-1692` binds those controls to editor settings and forwards the rendering parameters to the native compositor. Preview and export both render through that compositor, so a change shows in both.
 
+## Click rings
+
+A left click draws a ring that grows from 0.4x to 1.0x of its size while fading out (cubic ease-out), like the Apple recorder's. Each ring is a **click region** on the timeline (`document.clickRegions`, the Clicks lane), not a property of the cursor: it can be moved, resized, deleted or added by hand.
+
+- **Capture.** Nothing new is recorded. The cursor sidecar already carries `interactionType: "click" | "double-click"` with `cx`/`cy` as fractions of the source frame. `buildClickRegions` (`src/lib/ai-edition/clickEffects.ts`) turns them into regions when a document first opens (`useTimeline`, `history: false`). Right and middle clicks make none, nor does the click that pressed Stop. A ring is cut short at the next press so regions never overlap.
+- **Seeded once.** `clickRegions === undefined` means "not read yet"; `[]` means the user has none and is never seeded again (Clear timeline and "Remove all clicks" write `[]`).
+- **Model.** Clip-anchored like a zoom (`clipId` + source seconds is the truth). The span *is* the animation. `style` holds only overrides of `document.clickEffects` (`show`, `color`, `size`, `opacity`, `durationMs`; `durationMs` is what a new ring is given). `show: false` sends no rings at all.
+- **Rendering.** `buildSceneDescription` projects the regions like the zooms and sends `clickRegions`; the compositor draws them (`click_ring_cbs` in `frame_geometry.rs`, mode 20 of `shaders.metal`), so preview and export share one path. The centre goes through `cursor_plane_point` and `s_dst`, the same placement as the cursor, so it follows crop, zoom and scale. A ring is sized from the screen unit (56 px at 1080p) and grows with the zoom. Deleted regions are not in the scene.
+- **Platforms.** macOS (Metal) only for now: the D3D11 and wgpu backends parse `clickRegions` and ignore it.
+
 ## Auto-follow
 
 Cursor telemetry also drives camera focus for auto-follow zooms. `src/lib/zoomMath/cursorFollowUtils.ts` interpolates the cursor at content time and applies distance-adaptive, frame-rate-independent smoothing. The zoom-region utilities use that focus for preview, while the export frame renderer uses the corresponding focus during export. The native compositor keeps a raw track for cursor placement and derives a separately smoothed follow track (`crates/compositor/src/cursor.rs:16-24,126-136`), preventing camera motion from changing the cursor's actual recorded position.

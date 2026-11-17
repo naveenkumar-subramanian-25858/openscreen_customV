@@ -256,6 +256,7 @@ const DECLARED: WritePath[] = [
 	w("src/lib/ai-edition/store/useTimeline.ts", "applyClipEdit", "save", "gesture"),
 	w("src/lib/ai-edition/store/useTimeline.ts", "addAnnotation", "save", "gesture"),
 	w("src/lib/ai-edition/store/useTimeline.ts", "addCameraFullscreen", "save", "gesture"),
+	w("src/lib/ai-edition/store/useTimeline.ts", "addClick", "save", "gesture"),
 	w("src/lib/ai-edition/store/useTimeline.ts", "addSpeed", "save", "gesture"),
 	w("src/lib/ai-edition/store/useTimeline.ts", "addTrim", "save", "gesture"),
 	w("src/lib/ai-edition/store/useTimeline.ts", "addZoom", "save", "gesture"),
@@ -281,6 +282,7 @@ const DECLARED: WritePath[] = [
 	// the track (placeAudioTrack), change its payload (updateAudioTrack, which
 	// setAudioTrackGain routes through), or delete it — one undo step apiece.
 	w("src/lib/ai-edition/store/useTimeline.ts", "placeAudioTrack", "save", "gesture"),
+	w("src/lib/ai-edition/store/useTimeline.ts", "removeAllClicks", "save", "gesture"),
 	w("src/lib/ai-edition/store/useTimeline.ts", "removeAudioTrack", "save", "gesture"),
 	// Three exits, one gesture: the toggle writes the flag alone when there is
 	// nothing to fill, and the flag plus the filled span when there is. Either
@@ -297,11 +299,14 @@ const DECLARED: WritePath[] = [
 	w("src/lib/ai-edition/store/useTimeline.ts", "removeRegion", "save", "gesture"),
 	w("src/lib/ai-edition/store/useTimeline.ts", "removeRegions", "save", "gesture"),
 	w("src/lib/ai-edition/store/useTimeline.ts", "saveZoomPatch", "save", "gesture"),
+	w("src/lib/ai-edition/store/useTimeline.ts", "setClickEffects", "save", "gesture"),
 	w("src/lib/ai-edition/store/useTimeline.ts", "setTrimEntries", "save", "gesture"),
 	// The live halves of the drags.
 	w("src/lib/ai-edition/store/useTimeline.ts", "updateAnnotationLive", "set", "automatic"),
 	w("src/lib/ai-edition/store/useTimeline.ts", "updateAnnotationSpan", "save", "gesture"),
 	w("src/lib/ai-edition/store/useTimeline.ts", "updateCameraFullscreenSpan", "save", "gesture"),
+	w("src/lib/ai-edition/store/useTimeline.ts", "updateClick", "save", "gesture"),
+	w("src/lib/ai-edition/store/useTimeline.ts", "updateClickSpan", "save", "gesture"),
 	w("src/lib/ai-edition/store/useTimeline.ts", "updateShaderEffect", "save", "gesture"),
 	w("src/lib/ai-edition/store/useTimeline.ts", "updateShaderEffectLive", "set", "automatic"),
 	w("src/lib/ai-edition/store/useTimeline.ts", "updateShaderEffectSpan", "save", "gesture"),
@@ -315,6 +320,9 @@ const DECLARED: WritePath[] = [
 	w("src/lib/ai-edition/store/useTimeline.ts", "useTimeline", "save", "automatic"),
 	// Audio-duration backfill (issue #350) — the same on-load, un-asked-for probe
 	// for imported audio assets whose duration didn't stamp at import.
+	w("src/lib/ai-edition/store/useTimeline.ts", "useTimeline", "save", "automatic"),
+	// The recording's clicks, read into `clickRegions` once when a document first opens. The user
+	// asked for nothing, so it must not be what the first Ctrl+Z reverses.
 	w("src/lib/ai-edition/store/useTimeline.ts", "useTimeline", "save", "automatic"),
 ];
 

@@ -7,7 +7,8 @@
 		"addTrim": "Ajouter une coupe : retire une partie de la vidéo à l'instant actuel",
 		"addAnnotation": "Ajouter du texte, une flèche, une image ou un flou à l'instant actuel",
 		"addSpeed": "Ajouter un changement de vitesse à l'instant actuel",
-		"addCameraFullscreen": "Ajouter Caméra plein écran : affiche la caméra en plein écran à l'instant actuel"
+		"addCameraFullscreen": "Ajouter Caméra plein écran : affiche la caméra en plein écran à l'instant actuel",
+		"addClick": "Add a click effect at the current time"
 	},
 	"hints": {
 		"pressZoom": "Appuyez sur {{key}} pour ajouter un zoom",
@@ -96,7 +97,8 @@
 		"smartCutsNoSpeech": "Aucune parole détectée",
 		"smartCutsFailed": "Échec de la transcription — relancez-la depuis Médias",
 		"addAudioTooltip": "Ajouter un audio",
-		"addedWord": "Mot ajouté : « {{word}} » — aucun son derrière"
+		"addedWord": "Mot ajouté : « {{word}} » — aucun son derrière",
+		"clickRing": "Click"
 	},
 	"audio": {
 		"addVoiceover": "Ajouter une voix off",

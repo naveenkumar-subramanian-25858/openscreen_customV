@@ -30,6 +30,7 @@ import {
 	getCaptionSettings,
 	getCaptionTranslations,
 } from "@/lib/ai-edition/captions";
+import { resolveClickEffects, resolveClickStyle } from "@/lib/ai-edition/clickEffects";
 import { clickSoundForDocument } from "@/lib/ai-edition/clickSound";
 import { collapseTracksToPills, trackGroupId } from "@/lib/ai-edition/document/audioTracks";
 import { createId } from "@/lib/ai-edition/document/ids";
@@ -141,6 +142,21 @@ export interface SceneShaderEffect {
 	params: Array<{ name: string; type: "number" | "toggle" | "color" | "point" }>;
 	/** Every declared parameter, defaults filled in: one float, or 2 (point) or 4 (color). */
 	values: Record<string, number | number[]>;
+}
+
+/** One click ring (`document.clickRegions`), projected onto its clip's source time. The ring plays
+ *  from `startSec` to `endSec`; `x`/`y` are fractions of the SOURCE frame, placed by the compositor
+ *  through the same crop, zoom and tilt as the cursor. `scene.rs` `SceneClickRegion` reads it. */
+export interface SceneClickRegion {
+	id: string;
+	startSec: number;
+	endSec: number;
+	clipIndex?: number;
+	x: number;
+	y: number;
+	color: string;
+	size: number;
+	opacity: number;
 }
 
 /** A "Full Camera" timeline region (from `legacyEditor.cameraFullscreenRegions`). Times in seconds. */
@@ -504,6 +520,8 @@ export interface SceneDescription {
 	cameraFullscreenRegions: SceneCameraFullscreenRegion[];
 	/** Agent-written shader effects, omitted when there are none. */
 	shaderEffects?: SceneShaderEffect[];
+	/** Click rings, omitted when there are none or the project hides them. */
+	clickRegions?: SceneClickRegion[];
 	/**
 	 * Speed regions projected onto each clip's source time (one entry per
 	 * source-time span after `projectRegionsToSourceTime`). Empty when none set.
@@ -1196,6 +1214,28 @@ export function buildSceneDescription(
 		];
 	});
 
+	// Click rings: projected like the zooms. A ring under a trim is dropped, not shipped inert:
+	// there is no frame of it to show. `show: false` sends none, so preview and export agree.
+	const clickEffects = resolveClickEffects(document);
+	const sceneClickRegions: SceneClickRegion[] = clickEffects.show
+		? projectRegionsToSource(
+				document.clickRegions ?? [],
+				visibleClips,
+				document.timeline.clips,
+				() => createId("click"),
+			)
+				.filter((region) => !region.underTrim)
+				.map((region) => ({
+					id: region.id,
+					startSec: region.startMs / 1000,
+					endSec: region.endMs / 1000,
+					clipIndex: region.clipIndex,
+					x: region.x,
+					y: region.y,
+					...resolveClickStyle(clickEffects, region),
+				}))
+		: [];
+
 	// Webcam rect, single source of truth between preview & native :
 	// on résout le rect AVEC LA MÊME maths que `PreviewCanvas.computeCompositeLayout` et on
 	// l'envoie au natif dans `layout.webcamRect` (fractions du cadre de sortie). Le natif le
@@ -1582,6 +1622,7 @@ export function buildSceneDescription(
 			})),
 		cropByClip,
 		...(sceneShaderEffects.length > 0 ? { shaderEffects: sceneShaderEffects } : {}),
+		...(sceneClickRegions.length > 0 ? { clickRegions: sceneClickRegions } : {}),
 		output: { ...pickOutputDims(document, settings.aspectRatio), fps: null },
 		// Omitted rather than sent as `{mode:"none"}`: the Rust side defaults the field, and
 		// every project without a webcam effect would otherwise carry it for nothing.

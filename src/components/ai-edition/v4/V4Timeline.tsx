@@ -1,5 +1,6 @@
 import {
 	AudioLines,
+	CircleDot,
 	Clock,
 	Crosshair,
 	Eraser,
@@ -596,7 +597,7 @@ const AudioLanePill = memo(function AudioLanePill({
 
 interface LanePill {
 	id: string;
-	kind: "annotation" | "speed" | "trim" | "zoom" | "cameraFullscreen" | "shaderEffect";
+	kind: "annotation" | "speed" | "trim" | "zoom" | "cameraFullscreen" | "shaderEffect" | "click";
 	start: number;
 	end: number;
 	label: string;
@@ -776,6 +777,18 @@ export function V4Timeline({
 		label: effectNames.get(p.member.effectId) ?? "",
 		sourceIds: p.ids,
 	}));
+	// Click rings: a press ring each, never merged — two rings that touch are two clicks, and one
+	// pill for both would make the second impossible to grab. Their identity includes the position,
+	// so two at different points never coalesce; two at the same point and look would, and that
+	// is the one case `coalesceRegionsForRuler` is right about.
+	const clickPills: LanePill[] = coalesceRegionsForRuler(tl.clickRegions).map((p) => ({
+		id: p.ids[0],
+		kind: "click",
+		start: p.start,
+		end: p.end,
+		label: t("toolbar.clickRing"),
+		sourceIds: p.ids,
+	}));
 	const zoomRuns = coalesceRegionsForRuler(tl.zoomRegions);
 	const zoomPills: LanePill[] = zoomRuns.map((p) => ({
 		id: p.ids[0],
@@ -950,6 +963,7 @@ export function V4Timeline({
 				zoom: tl.zoomRegions,
 				cameraFullscreen: tl.cameraFullscreenRegions,
 				shaderEffect: tl.shaderEffectRanges,
+				click: tl.clickRegions,
 				// Nothing to edit on a trim but its span, and a span edit moves the whole pill.
 				trim: [],
 			};
@@ -1027,6 +1041,7 @@ export function V4Timeline({
 					await tl.updateCameraFullscreenSpan(grabbed, s * 1000, en * 1000);
 				else if (pill.kind === "shaderEffect")
 					await tl.updateShaderEffectSpan(grabbed, s * 1000, en * 1000);
+				else if (pill.kind === "click") await tl.updateClickSpan(grabbed, s * 1000, en * 1000);
 				else {
 					// Trims are stored in source-time per asset but manipulated on the
 					// timeline like every other pill. Ventilate the new span across the
@@ -1458,7 +1473,9 @@ export function V4Timeline({
 						? styles.laneCameraFullscreen
 						: kind === "shaderEffect"
 							? styles.laneShaderEffect
-							: styles.laneZoom;
+							: kind === "click"
+								? styles.laneClick
+								: styles.laneZoom;
 	const pillIcon = (kind: LanePill["kind"]) =>
 		kind === "annotation" ? (
 			<MessageSquare size={12} />
@@ -1470,6 +1487,8 @@ export function V4Timeline({
 			<Maximize2 size={12} />
 		) : kind === "shaderEffect" ? (
 			<Sparkles size={12} />
+		) : kind === "click" ? (
+			<CircleDot size={12} />
 		) : (
 			<ZoomIn size={12} />
 		);
@@ -2149,6 +2168,16 @@ export function V4Timeline({
 									<ZoomIn size={16} />
 								</button>
 							</Tooltip>
+							<Tooltip content={t("buttons.addClick")}>
+								<button
+									type="button"
+									className={styles.tlToolBtn}
+									aria-label={t("buttons.addClick")}
+									onClick={() => void tl.addClick()}
+								>
+									<CircleDot size={16} />
+								</button>
+							</Tooltip>
 							{/* One name and one tip for both states: `aria-pressed` carries which one it is. */}
 							<Tooltip content={t("buttons.autoFocusAllTip")}>
 								<button
@@ -2329,6 +2358,11 @@ export function V4Timeline({
 								    (`EFFECT_LANE_EXPANSION_PX`). */}
 								{tl.shaderEffectRanges.length > 0 ? (
 									<div className={styles.tlLane}>{renderPills(shaderEffectPills, "")}</div>
+								) : null}
+								{/* Click rings: recorded with the take, so the lane shows once there are any
+								    (`CLICK_LANE_EXPANSION_PX`). One is added by hand from the toolbar. */}
+								{tl.clickRegions.length > 0 ? (
+									<div className={styles.tlLane}>{renderPills(clickPills, "")}</div>
 								) : null}
 								{/* Imported audio tracks (issue #350). Always shown, like every other
 								    lane — "Add audio" is a toolbar peer of the region tools now (and

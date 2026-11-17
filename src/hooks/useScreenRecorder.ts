@@ -241,7 +241,6 @@ export async function finalizeWebcamAsset(
 
 export function useScreenRecorder(): UseScreenRecorderReturn {
 	const t = useScopedT("editor");
-	const tLaunch = useScopedT("launch");
 	/**
 	 * `t` through a ref, for the callbacks that must not be rebuilt when it
 	 * changes identity.
@@ -365,7 +364,6 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 	const discardRecordingId = useRef<number | null>(null);
 	const restarting = useRef(false);
 	const countdownRunId = useRef(0);
-	const cursorAccessibilityWarningShown = useRef(false);
 	const [countdownActive, setCountdownActive] = useState(false);
 	const webcamReady = useRef(false);
 	const webcamAcquireId = useRef(0);
@@ -1672,26 +1670,9 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 		try {
 			const platform = window.electronAPI.getPlatform();
 			if (platform === "darwin" && cursorCaptureMode === "editable-overlay") {
-				// Accessibility only improves cursor shape hints. Keep recording when
-				// the grant is pending or the helper is unavailable; the cursor session
-				// falls back to position-only telemetry when needed.
-				const access = await window.electronAPI.requestNativeMacCursorAccess();
-				if (
-					!access.granted &&
-					access.status === "not-determined" &&
-					!cursorAccessibilityWarningShown.current
-				) {
-					cursorAccessibilityWarningShown.current = true;
-					toast.warning(t("recording.cursorAccessibilityUnavailable"), {
-						duration: 10_000,
-						action: {
-							label: tLaunch("permissions.actions.openSettings"),
-							onClick: () => {
-								void window.electronAPI?.permissions.openSettings("accessibility");
-							},
-						},
-					});
-				}
+				// Accessibility only improves cursor shape hints: used when already granted, never
+				// asked for. The result is not acted on, so no prompt or toast follows a denial.
+				await window.electronAPI.requestNativeMacCursorAccess();
 			}
 		} catch (error) {
 			console.warn("Failed to preflight macOS cursor accessibility before countdown:", error);

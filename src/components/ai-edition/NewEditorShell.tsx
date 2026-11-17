@@ -127,6 +127,8 @@ export const MAX_TIMELINE_HEIGHT_PX = 560;
 /** The Effects lane's height (`.tlLane`: 24px and a 5px margin), added while the project has an
  *  effect: the lane only shows then (`V4Timeline`). */
 export const EFFECT_LANE_EXPANSION_PX = 29;
+/** The Clicks lane, the same row, added while the project has a click ring. */
+export const CLICK_LANE_EXPANSION_PX = 29;
 
 /**
  * What one `loadedmetadata` event does, from the front of the write queue.
@@ -269,9 +271,11 @@ export function NewEditorShell() {
 		[document?.audioTracks],
 	);
 	const hasEffects = (document?.shaderEffectRanges?.length ?? 0) > 0;
+	const hasClicks = (document?.clickRegions?.length ?? 0) > 0;
 	const extraLaneHeightPx =
 		Math.max(0, audioRowCount - 1) * AUDIO_ROW_EXPANSION_PX +
-		(hasEffects ? EFFECT_LANE_EXPANSION_PX : 0);
+		(hasEffects ? EFFECT_LANE_EXPANSION_PX : 0) +
+		(hasClicks ? CLICK_LANE_EXPANSION_PX : 0);
 	const timelineHeightPx = Math.min(
 		MAX_TIMELINE_HEIGHT_PX,
 		Math.max(MIN_TIMELINE_HEIGHT_PX, timelineBaseHeightPx + extraLaneHeightPx),
@@ -1253,6 +1257,8 @@ export function NewEditorShell() {
 			toast.success("Region copied");
 			return;
 		}
+		// Click rings are recorded, not authored: there is nothing to paste elsewhere.
+		if (sel.kind === "click") return;
 		const source =
 			sel.kind === "zoom"
 				? tl.zoomRegions

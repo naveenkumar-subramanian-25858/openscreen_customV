@@ -286,9 +286,11 @@ func leftButtonDown() -> Bool {
 	CGEventSource.buttonState(.hidSystemState, button: .left)
 }
 
+// A silent read: Accessibility only improves the cursor-shape hints, so it is used when the user
+// already granted it and never asked for. No prompt, no entry added to the Accessibility list.
 func requestAccessibilityTrust() -> Bool {
 	let options = [
-		kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true
+		kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false
 	] as CFDictionary
 	return AXIsProcessTrustedWithOptions(options)
 }

@@ -3676,7 +3676,7 @@ function safeAssetUrl(relativePath: string): string {
 	}
 }
 
-export function CursorPane() {
+export function CursorPane({ extra }: { extra?: React.ReactNode } = {}) {
 	const ts = useScopedT("settings");
 	const { settings, set, setLive, commit, hasDocument } = useEditorSettings();
 
@@ -3990,6 +3990,7 @@ export function CursorPane() {
 					) : null}
 				</>
 			) : null}
+			{extra}
 		</Pane>
 	);
 }

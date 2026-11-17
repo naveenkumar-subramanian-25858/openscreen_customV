@@ -150,6 +150,8 @@ function modifierIds(document: AxcutDocument, kind: ModifierKind): string[] {
 			return [...new Set(document.audioTracks.map(trackGroupId))];
 		case "shaderEffect":
 			return (document.shaderEffectRanges ?? []).map((region) => region.id);
+		case "click":
+			return (document.clickRegions ?? []).map((region) => region.id);
 	}
 }
 
@@ -606,6 +608,7 @@ function modifierIdsOf(document: AxcutDocument): string[] {
 		...speedRegions.map((r) => r.id),
 		...cameraFullscreenRegions.map((r) => r.id),
 		...(document.shaderEffectRanges ?? []).map((r) => r.id),
+		...(document.clickRegions ?? []).map((r) => r.id),
 	];
 }
 
@@ -3802,9 +3805,10 @@ export function executeAgentTool(
 			else if (cameraFullscreenRegions.some((c) => c.id === id)) kind = "cameraFullscreen";
 			else if (document.audioTracks.some((t) => trackGroupId(t) === id)) kind = "audio";
 			else if ((document.shaderEffectRanges ?? []).some((r) => r.id === id)) kind = "shaderEffect";
+			else if ((document.clickRegions ?? []).some((r) => r.id === id)) kind = "click";
 			if (!kind) {
 				return failure(
-					`No zoom / speed / annotation / full-camera / audio / effect modifier with id ${id}. ` +
+					`No zoom / speed / annotation / full-camera / audio / effect / click modifier with id ${id}. ` +
 						`For a trim use removeTrim; for a clip use removeClip.`,
 				);
 			}

@@ -245,7 +245,23 @@
 		"effectTierHeavy": "Pesado",
 		"effectTierVeryHeavy": "Muy pesado",
 		"effectCode": "Código",
-		"copyEffectCode": "Copiar código"
+		"copyEffectCode": "Copiar código",
+		"clickEffects": {
+			"title": "Click effect",
+			"show": "Show click effects",
+			"size": "Ring size",
+			"opacity": "Opacity",
+			"duration": "Duration",
+			"color": "Ring color",
+			"add": "Add click at playhead",
+			"removeAll": "Remove all clicks"
+		},
+		"clickRegion": {
+			"title": "Click",
+			"positionX": "Position X",
+			"positionY": "Position Y",
+			"useProjectStyle": "Use project style"
+		}
 	},
 	"chat": {
 		"changeProvider": "Cambiar proveedor",

@@ -7,7 +7,8 @@
 		"addTrim": "Thêm cắt: xóa một đoạn video tại thời điểm hiện tại",
 		"addAnnotation": "Thêm văn bản, mũi tên, hình ảnh hoặc làm mờ tại thời điểm hiện tại",
 		"addSpeed": "Thêm thay đổi tốc độ tại thời điểm hiện tại",
-		"addCameraFullscreen": "Thêm Camera Toàn màn hình: hiển thị camera toàn màn hình tại thời điểm hiện tại"
+		"addCameraFullscreen": "Thêm Camera Toàn màn hình: hiển thị camera toàn màn hình tại thời điểm hiện tại",
+		"addClick": "Add a click effect at the current time"
 	},
 	"hints": {
 		"pressZoom": "Nhấn {{key}} để thêm thu phóng",
@@ -96,7 +97,8 @@
 		"smartCutsNoSpeech": "Không phát hiện giọng nói",
 		"smartCutsFailed": "Phiên âm thất bại — thử lại trong Media",
 		"addAudioTooltip": "Thêm âm thanh",
-		"addedWord": "Từ đã thêm: \"{{word}}\" — không có âm thanh phía sau"
+		"addedWord": "Từ đã thêm: \"{{word}}\" — không có âm thanh phía sau",
+		"clickRing": "Click"
 	},
 	"audio": {
 		"addVoiceover": "Thêm thuyết minh",

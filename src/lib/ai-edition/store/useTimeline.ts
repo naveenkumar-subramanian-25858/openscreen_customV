@@ -12,8 +12,18 @@ import type {
 	Rotation3DPreset,
 } from "@/components/video-editor/types";
 import { useScopedT } from "@/contexts/I18nContext";
+import { nativeBridgeClient } from "@/native/client";
 import { DEFAULT_TEXT_PLATE } from "../annotations/background";
 import { fitTextBox } from "../annotations/placement";
+import {
+	buildClickRegions,
+	CLICK_DURATION_RANGE_MS,
+	CLICK_SIZE_RANGE,
+	clickRegionOnClip,
+	clipAtRawSec,
+	pointerAt,
+	resolveClickEffects,
+} from "../clickEffects";
 import {
 	collapseTracksToPills,
 	patchAudioTrack,
@@ -39,6 +49,8 @@ import {
 } from "../document/timeline";
 import type {
 	AxcutAudioTrack,
+	AxcutClickEffects,
+	AxcutClickRegion,
 	AxcutClipCropRegion,
 	AxcutDocument,
 	AxcutShaderEffectRange,
@@ -77,6 +89,8 @@ const DEFAULT_NEW_REGION_SEC = 2;
 // documents, both of which can carry NaN; every action needs the same guard.
 const finiteSec = (n: number) => (Number.isFinite(n) ? Math.max(0, n) : 0);
 const finiteMs = (n: number) => (Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0);
+// The schema takes `#rrggbb` only, and a document that fails it is not saved at all.
+const HEX6 = /^#[0-9a-fA-F]{6}$/;
 const finiteFraction = (n: number) => (Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0.5);
 
 // Placeholder duration applied to a freshly-inserted clip whose source asset hasn't
@@ -1186,6 +1200,194 @@ export function useTimeline() {
 		[document, saveDocument],
 	);
 
+	// ---- Click rings -----------------------------------------------------------------------
+	// `clickRegions === undefined` means the recording's clicks have not been read yet. The first
+	// time a document with clips is open, they are read once and stored (`history: false`: a
+	// backfill nobody asked for is not what Ctrl+Z should undo). `[]` is a real answer and is
+	// never seeded again, so deleting every ring stays deleted.
+	const seededClickProjectsRef = useRef<Set<string>>(new Set());
+	const telemetryByPathRef = useRef<
+		Map<string, Awaited<ReturnType<typeof nativeBridgeClient.cursor.getTelemetry>>>
+	>(new Map());
+	const readTelemetry = useCallback(async (videoPath: string) => {
+		const cached = telemetryByPathRef.current.get(videoPath);
+		if (cached) return cached;
+		const read = (await nativeBridgeClient.cursor.getTelemetry(videoPath)) ?? [];
+		telemetryByPathRef.current.set(videoPath, read);
+		return read;
+	}, []);
+	useEffect(() => {
+		if (!document || document.clickRegions !== undefined) return;
+		const { clips } = document.timeline;
+		// A clip whose media is not probed yet has no source window to place a click in.
+		if (clips.length === 0 || clips.some((c) => !((c.sourceEndSec ?? 0) > c.sourceStartSec)))
+			return;
+		const originatingProjectId = document.project.id;
+		if (seededClickProjectsRef.current.has(originatingProjectId)) return;
+		seededClickProjectsRef.current.add(originatingProjectId);
+		void (async () => {
+			try {
+				const assets = document.assets.filter(
+					(a) =>
+						a.kind === "video" && a.originalPath && clips.some((clip) => clip.assetId === a.id),
+				);
+				const telemetry = new Map(
+					await Promise.all(
+						assets.map(async (a) => [a.id, await readTelemetry(a.originalPath)] as const),
+					),
+				);
+				const current = useProjectStore.getState().document;
+				if (!current || current.project.id !== originatingProjectId) return;
+				if (current.clickRegions !== undefined) return;
+				const regions = buildClickRegions(
+					current.timeline.clips,
+					telemetry,
+					resolveClickEffects(current).durationMs,
+				);
+				await useProjectStore
+					.getState()
+					.saveDocument({ ...current, clickRegions: regions }, { history: false });
+			} catch (error) {
+				// An unreadable sidecar says nothing about whether the take has clicks: leave the
+				// list unset so a later session reads it again, and do not retry in this one.
+				console.error("Failed to read the recorded clicks", error);
+			}
+		})();
+	}, [document, readTelemetry]);
+
+	// A ring at the playhead, where the recorded pointer was (the middle of the frame when the take
+	// has no pointer track). Clamped to the free space around it: rings never overlap on the ruler.
+	const addClick = useCallback(async () => {
+		if (!document) return;
+		const regions = document.clickRegions ?? [];
+		const playheadMs = Math.round(playheadSec() * 1000);
+		const clip = clipAtRawSec(document.timeline.clips, playheadMs / 1000);
+		if (!clip) return;
+		let startMs = playheadMs;
+		const inside = regions.find((r) => r.startMs <= startMs && startMs < r.endMs);
+		if (inside) startMs = inside.endMs;
+		let endMs = Math.min(
+			startMs + resolveClickEffects(document).durationMs,
+			Math.round(clip.timelineEndSec * 1000),
+		);
+		for (const r of regions) if (r.startMs >= startMs) endMs = Math.min(endMs, r.startMs);
+		if (endMs - startMs < 60) return;
+		const sourceAt = (ms: number) => clip.sourceStartSec + (ms / 1000 - clip.timelineStartSec);
+		const asset = document.assets.find((a) => a.id === clip.assetId);
+		let at = { x: 0.5, y: 0.5 };
+		try {
+			if (asset?.originalPath) {
+				const samples = await readTelemetry(asset.originalPath);
+				at = pointerAt(samples, sourceAt(startMs)) ?? at;
+			}
+		} catch {
+			// No pointer track: the centre is the fallback.
+		}
+		const region = clickRegionOnClip(clip, sourceAt(startMs), sourceAt(endMs), at.x, at.y);
+		const latest = useProjectStore.getState().document ?? document;
+		if (
+			!(await saveDocument(
+				{ ...latest, clickRegions: [...(latest.clickRegions ?? []), region] },
+				{ history: true },
+			))
+		)
+			return;
+		// What `selectRegion` does, inlined: it is declared further down this hook.
+		const handle = { kind: "click" as const, id: region.id };
+		setClipSelection(null);
+		setSelectedAudioTrackId(null);
+		setMultiSelection([handle]);
+		setSelection(handle);
+	}, [document, saveDocument, readTelemetry, setSelectedAudioTrackId]);
+
+	const updateClickSpan = useCallback(
+		async (id: string, startMs: number, endMs: number) => {
+			if (!document) return;
+			const s = finiteMs(startMs);
+			const e = finiteMs(endMs);
+			await saveDocument(
+				{
+					...document,
+					clickRegions: replacePillSpan(
+						document.clickRegions ?? [],
+						id,
+						Math.min(s, e),
+						Math.max(s, e),
+						document.timeline.clips,
+						() => createId("click"),
+					) as AxcutClickRegion[],
+				},
+				{ history: true },
+			);
+		},
+		[document, saveDocument],
+	);
+
+	// The inspector's per-ring edits. `style` merges into the ring's overrides; `null` clears a key.
+	const updateClick = useCallback(
+		async (
+			id: string,
+			patch: {
+				x?: number;
+				y?: number;
+				style?: {
+					color?: string | null;
+					size?: number | null;
+					opacity?: number | null;
+				};
+			},
+		) => {
+			if (!document) return;
+			const regions = document.clickRegions ?? [];
+			const under = new Set(resolveRegionIds(regions, id));
+			const next = regions.map((r) => {
+				if (!under.has(r.id)) return r;
+				const style = { ...r.style };
+				for (const [key, value] of Object.entries(patch.style ?? {})) {
+					if (value === undefined) continue;
+					if (key === "color" && typeof value === "string" && !HEX6.test(value)) continue;
+					if (value === null) delete style[key as keyof typeof style];
+					else (style as Record<string, unknown>)[key] = value;
+				}
+				return {
+					...r,
+					...(patch.x !== undefined ? { x: finiteFraction(patch.x) } : {}),
+					...(patch.y !== undefined ? { y: finiteFraction(patch.y) } : {}),
+					style: Object.keys(style).length > 0 ? style : undefined,
+				};
+			});
+			await saveDocument({ ...document, clickRegions: next }, { history: true });
+		},
+		[document, saveDocument],
+	);
+
+	// The project-wide look and the show/hide switch. Sizes and durations are clamped to the
+	// ranges the inspector offers, so a stored value can never be one it could not have set.
+	const setClickEffects = useCallback(
+		async (patch: AxcutClickEffects) => {
+			if (!document) return;
+			const next: AxcutClickEffects = { ...document.clickEffects, ...patch };
+			if (next.color !== undefined && !HEX6.test(next.color))
+				next.color = document.clickEffects?.color;
+			if (next.size !== undefined)
+				next.size = Math.min(CLICK_SIZE_RANGE.max, Math.max(CLICK_SIZE_RANGE.min, next.size));
+			if (next.durationMs !== undefined)
+				next.durationMs = Math.min(
+					CLICK_DURATION_RANGE_MS.max,
+					Math.max(CLICK_DURATION_RANGE_MS.min, Math.round(next.durationMs)),
+				);
+			await saveDocument({ ...document, clickEffects: next }, { history: true });
+		},
+		[document, saveDocument],
+	);
+
+	const removeAllClicks = useCallback(async () => {
+		if (!document || (document.clickRegions ?? []).length === 0) return;
+		if (!(await saveDocument({ ...document, clickRegions: [] }, { history: true }))) return;
+		if (selection?.kind === "click") setSelection(null);
+		setMultiSelection((prev) => prev.filter((h) => h.kind !== "click"));
+	}, [document, selection, saveDocument]);
+
 	const removeRegion = useCallback(
 		async (kind: RegionKind, id: string) => {
 			if (!document) return;
@@ -1215,6 +1417,7 @@ export function useTimeline() {
 			const shaderEffectIds = new Set(
 				handles.filter((h) => h.kind === "shaderEffect").map((h) => h.id),
 			);
+			const clickIds = new Set(handles.filter((h) => h.kind === "click").map((h) => h.id));
 			const legacy = (document.legacyEditor as Record<string, unknown>) ?? {};
 			const prevSpeed = dropPillsByIds(
 				(legacy.speedRegions as Array<{ id: string; startMs: number; endMs: number }>) ?? [],
@@ -1229,6 +1432,9 @@ export function useTimeline() {
 				...document,
 				zoomRanges: dropPillsByIds(document.zoomRanges, zoomIds) as AxcutDocument["zoomRanges"],
 				annotations: dropPillsByIds(document.annotations, annotationIds),
+				...(clickIds.size > 0
+					? { clickRegions: dropPillsByIds(document.clickRegions ?? [], clickIds) }
+					: {}),
 				...(shaderEffectIds.size > 0
 					? {
 							shaderEffectRanges: dropPillsByIds(
@@ -1744,6 +1950,8 @@ export function useTimeline() {
 		cameraFullscreenRegions,
 		shaderEffectRanges,
 		shaderEffects,
+		clickRegions: document?.clickRegions ?? [],
+		clickEffects: resolveClickEffects(document),
 		clips: document?.timeline.clips ?? [],
 		assets: document?.assets ?? [],
 		// The timeline marks where the user has ADDED words — text with no audio behind it.
@@ -1797,6 +2005,11 @@ export function useTimeline() {
 		updateSpeedSpan,
 		updateSpeedValue,
 		updateCameraFullscreenSpan,
+		addClick,
+		updateClickSpan,
+		updateClick,
+		setClickEffects,
+		removeAllClicks,
 		updateShaderEffectSpan,
 		updateShaderEffect,
 		updateShaderEffectLive,

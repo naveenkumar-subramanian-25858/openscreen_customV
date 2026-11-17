@@ -7,7 +7,8 @@
 		"addTrim": "트림 추가: 현재 시점에서 영상의 한 구간을 제거합니다",
 		"addAnnotation": "현재 시점에 텍스트, 화살표, 이미지 또는 블러 추가",
 		"addSpeed": "현재 시점에 속도 변경 추가",
-		"addCameraFullscreen": "전체 화면 카메라 추가: 현재 시점에 카메라를 전체 화면으로 표시합니다"
+		"addCameraFullscreen": "전체 화면 카메라 추가: 현재 시점에 카메라를 전체 화면으로 표시합니다",
+		"addClick": "Add a click effect at the current time"
 	},
 	"hints": {
 		"pressZoom": "{{key}}를 눌러 줌 추가",
@@ -96,7 +97,8 @@
 		"smartCutsNoSpeech": "음성이 감지되지 않음",
 		"smartCutsFailed": "받아쓰기에 실패했습니다 — 미디어에서 다시 시도하세요",
 		"addAudioTooltip": "오디오 추가",
-		"addedWord": "추가한 단어: \"{{word}}\" — 뒤에 오디오가 없습니다"
+		"addedWord": "추가한 단어: \"{{word}}\" — 뒤에 오디오가 없습니다",
+		"clickRing": "Click"
 	},
 	"audio": {
 		"addVoiceover": "내레이션 추가",

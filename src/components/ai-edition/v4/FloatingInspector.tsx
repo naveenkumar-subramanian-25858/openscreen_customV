@@ -10,6 +10,7 @@ import {
 	AudioLines,
 	Camera,
 	ChevronRight,
+	CircleDot,
 	Copy,
 	EyeOff,
 	FileText,
@@ -55,9 +56,17 @@ import {
 	type AnnotationTextAnimation,
 	TEXT_ANIMATION_VALUES,
 } from "@/lib/ai-edition/annotations/textAnimation";
+import {
+	CLICK_DURATION_RANGE_MS,
+	CLICK_EFFECT_DEFAULTS,
+	CLICK_SIZE_RANGE,
+	type ResolvedClickEffects,
+	resolveClickStyle,
+} from "@/lib/ai-edition/clickEffects";
 import { resolveAspectRatioValue } from "@/lib/ai-edition/document/outputFormat";
 import type {
 	AxcutAnnotationRegion,
+	AxcutClickRegion,
 	AxcutClip,
 	AxcutShaderEffect,
 	AxcutShaderEffectParam,
@@ -177,7 +186,12 @@ export function FloatingInspector({
 					) : audioTrackSelected ? (
 						<AudioTrackPane tl={tl} onClose={() => tl.clearSelection()} />
 					) : (
-						<FacetBody facet={facet} onCollapse={onToggleOpen} transcriptProps={transcriptProps} />
+						<FacetBody
+							facet={facet}
+							tl={tl}
+							onCollapse={onToggleOpen}
+							transcriptProps={transcriptProps}
+						/>
 					)}
 				</div>
 			) : null}
@@ -1275,6 +1289,21 @@ function SelectionPane({ tl, onClose }: { tl: TimelineApi; onClose: () => void }
 		);
 	}
 
+	if (selection.kind === "click") {
+		const region = tl.clickRegions.find((r) => r.id === selection.id);
+		if (!region) return null;
+		return (
+			<ClickRegionPane
+				key={region.id}
+				tl={tl}
+				region={region}
+				onClose={onClose}
+				onDelete={deleteAndClose}
+				bodyStyle={bodyStyle}
+			/>
+		);
+	}
+
 	if (selection.kind === "shaderEffect") {
 		const region = tl.shaderEffectRanges.find((r) => r.id === selection.id);
 		const effect = region ? tl.shaderEffects.find((e) => e.id === region.effectId) : undefined;
@@ -1554,12 +1583,260 @@ function ShaderEffectPane({
 	);
 }
 
+/** A value being dragged, held locally until release: the document is written once per gesture,
+ *  not once per pixel (one save, one undo step). */
+function useGestureDraft<T extends Record<string, number | string>>() {
+	const [draft, setDraft] = useState<Partial<T>>({});
+	const ref = useRef(draft);
+	ref.current = draft;
+	return {
+		draft,
+		set: (patch: Partial<T>) => setDraft((prev) => ({ ...prev, ...patch })),
+		/** The draft as it stands now, and cleared. */
+		take: (): Partial<T> => {
+			const taken = ref.current;
+			setDraft({});
+			return taken;
+		},
+	};
+}
+
+/** One click ring: its look (over the project's), where it landed, and how long it plays. */
+function ClickRegionPane({
+	tl,
+	region,
+	onClose,
+	onDelete,
+	bodyStyle,
+}: {
+	tl: TimelineApi;
+	region: AxcutClickRegion;
+	onClose: () => void;
+	onDelete: () => void;
+	bodyStyle: React.CSSProperties;
+}) {
+	const te = useScopedT("editor");
+	const tc = useScopedT("common");
+	const gesture = useGestureDraft<{
+		size: number;
+		opacity: number;
+		durationMs: number;
+		x: number;
+		y: number;
+		color: string;
+	}>();
+	const style = resolveClickStyle(tl.clickEffects, region);
+	const durationMs = region.endMs - region.startMs;
+	const overridden = region.style !== undefined;
+	const commitStyle = () => {
+		const { size, opacity, color } = gesture.take();
+		if (size !== undefined || opacity !== undefined || color !== undefined)
+			void tl.updateClick(region.id, { style: { size, opacity, color } });
+	};
+	return (
+		<div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+			{paneHeader(
+				<CircleDot size={16} />,
+				te("inspector.clickRegion.title"),
+				onClose,
+				tc("actions.close"),
+			)}
+			<div style={bodyStyle}>
+				<SliderCell
+					label={te("inspector.clickEffects.size")}
+					value={gesture.draft.size ?? style.size}
+					min={CLICK_SIZE_RANGE.min}
+					max={CLICK_SIZE_RANGE.max}
+					step={0.05}
+					decimals={2}
+					suffix="×"
+					defaultValue={tl.clickEffects.size}
+					onChange={(size) => gesture.set({ size })}
+					onCommit={commitStyle}
+				/>
+				<SliderCell
+					label={te("inspector.clickEffects.opacity")}
+					value={Math.round((gesture.draft.opacity ?? style.opacity) * 100)}
+					min={5}
+					max={100}
+					suffix="%"
+					defaultValue={Math.round(tl.clickEffects.opacity * 100)}
+					onChange={(pct) => gesture.set({ opacity: pct / 100 })}
+					onCommit={commitStyle}
+				/>
+				<SliderCell
+					label={te("inspector.clickEffects.duration")}
+					value={gesture.draft.durationMs ?? durationMs}
+					min={CLICK_DURATION_RANGE_MS.min}
+					max={CLICK_DURATION_RANGE_MS.max}
+					step={10}
+					suffix=" ms"
+					defaultValue={tl.clickEffects.durationMs}
+					onChange={(next) => gesture.set({ durationMs: next })}
+					onCommit={() => {
+						const { durationMs: next } = gesture.take();
+						if (next !== undefined)
+							void tl.updateClickSpan(region.id, region.startMs, region.startMs + next);
+					}}
+				/>
+				{paneRow(
+					te("inspector.clickEffects.color"),
+					<ColorField
+						label={te("inspector.clickEffects.color")}
+						value={gesture.draft.color ?? style.color}
+						onChange={(color) => gesture.set({ color })}
+						onCommit={commitStyle}
+					/>,
+				)}
+				<SliderCell
+					label={te("inspector.clickRegion.positionX")}
+					value={Math.round((gesture.draft.x ?? region.x) * 100)}
+					min={0}
+					max={100}
+					suffix="%"
+					onChange={(pct) => gesture.set({ x: pct / 100 })}
+					onCommit={() => {
+						const { x } = gesture.take();
+						if (x !== undefined) void tl.updateClick(region.id, { x });
+					}}
+				/>
+				<SliderCell
+					label={te("inspector.clickRegion.positionY")}
+					value={Math.round((gesture.draft.y ?? region.y) * 100)}
+					min={0}
+					max={100}
+					suffix="%"
+					onChange={(pct) => gesture.set({ y: pct / 100 })}
+					onCommit={() => {
+						const { y } = gesture.take();
+						if (y !== undefined) void tl.updateClick(region.id, { y });
+					}}
+				/>
+				{overridden ? (
+					<button
+						type="button"
+						className={PANE_BUTTON}
+						onClick={() =>
+							void tl.updateClick(region.id, {
+								style: { color: null, size: null, opacity: null },
+							})
+						}
+					>
+						{te("inspector.clickRegion.useProjectStyle")}
+					</button>
+				) : null}
+				<button type="button" onClick={onDelete} className={PANE_BUTTON}>
+					<Trash2 size={16} style={{ color: "var(--danger)" }} />
+					{te("inspector.deleteRegion")}
+				</button>
+			</div>
+		</div>
+	);
+}
+
+/** The project-wide look of every click ring, the switch that hides them, and the bulk actions. */
+function ClickEffectsSection({ tl }: { tl: TimelineApi }) {
+	const te = useScopedT("editor");
+	const fx: ResolvedClickEffects = tl.clickEffects;
+	const gesture = useGestureDraft<{
+		size: number;
+		opacity: number;
+		durationMs: number;
+		color: string;
+	}>();
+	const commit = () => {
+		const patch = gesture.take();
+		if (Object.keys(patch).length > 0) void tl.setClickEffects(patch);
+	};
+	return (
+		<>
+			<div className={styles.paneRow}>
+				<span className={styles.label}>{te("inspector.clickEffects.title")}</span>
+				<Toggle
+					ariaLabel={te("inspector.clickEffects.show")}
+					checked={fx.show}
+					disabled={!tl.hasDoc}
+					onChange={(show) => void tl.setClickEffects({ show })}
+				/>
+			</div>
+			{fx.show ? (
+				<>
+					<div className={styles.sliderGrid}>
+						<SliderCell
+							label={te("inspector.clickEffects.size")}
+							value={gesture.draft.size ?? fx.size}
+							min={CLICK_SIZE_RANGE.min}
+							max={CLICK_SIZE_RANGE.max}
+							step={0.05}
+							decimals={2}
+							suffix="×"
+							defaultValue={CLICK_EFFECT_DEFAULTS.size}
+							onChange={(size) => gesture.set({ size })}
+							onCommit={commit}
+						/>
+						<SliderCell
+							label={te("inspector.clickEffects.opacity")}
+							value={Math.round((gesture.draft.opacity ?? fx.opacity) * 100)}
+							min={5}
+							max={100}
+							suffix="%"
+							defaultValue={Math.round(CLICK_EFFECT_DEFAULTS.opacity * 100)}
+							onChange={(pct) => gesture.set({ opacity: pct / 100 })}
+							onCommit={commit}
+						/>
+						<SliderCell
+							label={te("inspector.clickEffects.duration")}
+							value={gesture.draft.durationMs ?? fx.durationMs}
+							min={CLICK_DURATION_RANGE_MS.min}
+							max={CLICK_DURATION_RANGE_MS.max}
+							step={10}
+							suffix=" ms"
+							defaultValue={CLICK_EFFECT_DEFAULTS.durationMs}
+							onChange={(durationMs) => gesture.set({ durationMs })}
+							onCommit={commit}
+						/>
+					</div>
+					<div className={styles.paneRow}>
+						<span className={styles.label}>{te("inspector.clickEffects.color")}</span>
+						<ColorField
+							label={te("inspector.clickEffects.color")}
+							value={gesture.draft.color ?? fx.color}
+							onChange={(color) => gesture.set({ color })}
+							onCommit={commit}
+						/>
+					</div>
+					<button
+						type="button"
+						className={PANE_BUTTON}
+						disabled={!tl.hasDoc}
+						onClick={() => void tl.addClick()}
+					>
+						<CircleDot size={16} />
+						{te("inspector.clickEffects.add")}
+					</button>
+					<button
+						type="button"
+						className={PANE_BUTTON}
+						disabled={tl.clickRegions.length === 0}
+						onClick={() => void tl.removeAllClicks()}
+					>
+						<Trash2 size={16} style={{ color: "var(--danger)" }} />
+						{te("inspector.clickEffects.removeAll")}
+					</button>
+				</>
+			) : null}
+		</>
+	);
+}
+
 function FacetBody({
 	facet,
+	tl,
 	onCollapse,
 	transcriptProps,
 }: {
 	facet: Facet;
+	tl: TimelineApi;
 	onCollapse: () => void;
 	transcriptProps: TranscriptProps;
 }) {
@@ -1594,7 +1871,8 @@ function FacetBody({
 
 	if (facet === "layout") return wrap(collapse, <LayoutPane />);
 	if (facet === "audio") return wrap(collapse, <AudioPane />);
-	if (facet === "cursor") return wrap(collapse, <CursorPane />);
+	if (facet === "cursor")
+		return wrap(collapse, <CursorPane extra={<ClickEffectsSection tl={tl} />} />);
 	if (facet === "transcript") return wrap(collapse, <TranscriptPane {...transcriptProps} />);
 	// `effects` is the fallthrough rather than a branch of its own: the union has no
 	// tail left now that captions is a popover, and a `never` check here would only

@@ -13,8 +13,10 @@ import {
 	ZOOM_DEPTH_SCALES,
 } from "@/components/video-editor/types";
 import { prepareClickSound } from "@/lib/ai-edition/clickSound";
+import { removeRegion } from "@/lib/ai-edition/document/timeline";
 import type {
 	AxcutAsset,
+	AxcutClickRegion,
 	AxcutClip,
 	AxcutDocument,
 	AxcutZoomRegion,
@@ -3042,5 +3044,85 @@ describe("buildSceneDescription.shaderEffects", () => {
 			],
 		});
 		expect(buildSceneDescription(doc).shaderEffects).toBeUndefined();
+	});
+});
+
+describe("buildSceneDescription — click rings", () => {
+	const asset = makeAsset({ id: "a1", originalPath: "/tmp/a1.mp4" });
+	const clip = makeClip({
+		id: "c1",
+		assetId: "a1",
+		sourceStartSec: 10,
+		sourceEndSec: 20,
+		timelineStartSec: 0,
+		timelineEndSec: 10,
+	});
+	const ring = (id: string, startSec: number, style?: AxcutClickRegion["style"]) =>
+		({
+			id,
+			clipId: "c1",
+			sourceStartSec: startSec,
+			sourceEndSec: startSec + 0.5,
+			startMs: Math.round((startSec - 10) * 1000),
+			endMs: Math.round((startSec - 10 + 0.5) * 1000),
+			x: 0.25,
+			y: 0.75,
+			...(style ? { style } : {}),
+		}) satisfies AxcutClickRegion;
+	const docWith = (
+		clickRegions: AxcutClickRegion[] | undefined,
+		clickEffects?: AxcutDocument["clickEffects"],
+	): AxcutDocument => ({
+		...makeDoc({ assets: [asset], clips: [clip] }),
+		...(clickRegions ? { clickRegions } : {}),
+		...(clickEffects ? { clickEffects } : {}),
+	});
+
+	it("sends each ring on its clip's source time, with the project look and its own overrides", () => {
+		const scene = buildSceneDescription(
+			docWith([ring("k1", 12), ring("k2", 15, { size: 2, color: "#00aaff" })], {
+				opacity: 0.6,
+			}),
+		);
+		expect(scene.clickRegions).toEqual([
+			{
+				id: expect.any(String),
+				startSec: 12,
+				endSec: 12.5,
+				clipIndex: 0,
+				x: 0.25,
+				y: 0.75,
+				color: "#ffffff",
+				size: 1,
+				opacity: 0.6,
+			},
+			{
+				id: expect.any(String),
+				startSec: 15,
+				endSec: 15.5,
+				clipIndex: 0,
+				x: 0.25,
+				y: 0.75,
+				color: "#00aaff",
+				size: 2,
+				opacity: 0.6,
+			},
+		]);
+	});
+
+	it("sends nothing when there are no rings, so older scenes are unchanged", () => {
+		expect(buildSceneDescription(docWith(undefined)).clickRegions).toBeUndefined();
+		expect(buildSceneDescription(docWith([])).clickRegions).toBeUndefined();
+	});
+
+	it("sends nothing while the project hides click effects", () => {
+		const scene = buildSceneDescription(docWith([ring("k1", 12)], { show: false }));
+		expect(scene.clickRegions).toBeUndefined();
+	});
+
+	it("does not send a ring that was deleted", () => {
+		const doc = docWith([ring("k1", 12), ring("k2", 15)]);
+		const kept = removeRegion(doc, "click", "k1");
+		expect(buildSceneDescription(kept).clickRegions?.map((r) => r.startSec)).toEqual([15]);
 	});
 });

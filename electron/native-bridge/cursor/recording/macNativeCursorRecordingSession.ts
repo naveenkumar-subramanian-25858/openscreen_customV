@@ -248,12 +248,10 @@ export class MacNativeCursorRecordingSession implements CursorRecordingSession {
 		this.previousLeftButtonDown = false;
 		this.consecutiveOutsideSamples = 0;
 
-		// `true` here, unlike the silent read in requestMacCursorAccessibilityAccess: the
-		// return value is discarded, so prompting IS the point. Recording is starting and
-		// the helper is about to spawn, so this is the moment the grant can still change
-		// what the take records.
+		// A silent read, so Accessibility is never asked for: it is used when already granted
+		// and skipped otherwise.
 		try {
-			systemPreferences.isTrustedAccessibilityClient(true);
+			systemPreferences.isTrustedAccessibilityClient(false);
 		} catch {
 			// Without Accessibility, text/pointer affordance detection is unavailable;
 			// bitmaps are still captured natively via NSCursor.

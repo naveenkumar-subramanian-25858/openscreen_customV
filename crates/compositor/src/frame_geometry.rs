@@ -72,7 +72,7 @@ impl LayerCB {
     /// sur RADV) ; les trois backends décident donc du shader d'un calque par ce test, au moment de
     /// le dessiner (cf. le haut de `vk_shaders/layer.wgsl`).
     pub fn needs_models(&self) -> bool {
-        (self.mode > 14.5 && self.mode < 17.5) || self.mode > 18.5
+        (self.mode > 14.5 && self.mode < 17.5) || (self.mode > 18.5 && self.mode < 19.5)
     }
 }
 
@@ -3758,6 +3758,99 @@ pub fn cursor_plane_point(cut: [f32; 4], uv_max: [f32; 2], p: (f32, f32)) -> Opt
     ((0.0..=1.0).contains(&fx) && (0.0..=1.0).contains(&fy)).then_some([fx, fy])
 }
 
+// ============ Anneau de clic (mode 20) ============
+// Emplacements du cbuffer — miroir du shader (`click_ring`) :
+//   dst, quad_px  le carré autour du clic, en fractions de la sortie / en px
+//   radius_px     largeur de l'antialiasing, px
+//   color         teinte de l'anneau (rgb) ; a = 1
+//   src           (rayon de l'anneau px, épaisseur du trait px, opacité du trait, opacité du centre)
+//   fx            (opacité de la lueur noire, sigma de la lueur px, 0, 0)
+
+/// Diamètre final de référence d'un anneau, en px à 1080p.
+const CLICK_RING_DIAMETER_PX: f32 = 56.0;
+/// Épaisseur du trait à 1080p, px.
+const CLICK_RING_STROKE_PX: f32 = 3.0;
+/// Sigma de la lueur à 1080p, px.
+const CLICK_RING_GLOW_SIGMA_PX: f32 = 5.0;
+/// Opacité de la lueur noire, relative à celle du trait : lisible sur fond clair sans salir le sombre.
+const CLICK_RING_GLOW_ALPHA: f32 = 0.35;
+/// Le centre, en part de l'opacité du trait (~15 % à l'opacité pleine).
+const CLICK_RING_FILL_SHARE: f32 = 0.1875;
+
+/// L'animation d'un anneau à la progression `u` (0..1) : `(échelle, opacité)`. L'échelle va de 0,4
+/// à 1,0 en décélérant (cubique) ; l'opacité de `opacity` à 0, en `(1 − u)²`.
+fn click_ring_anim(u: f32, opacity: f32) -> (f32, f32) {
+    let u = u.clamp(0.0, 1.0);
+    let ease = 1.0 - (1.0 - u).powi(3);
+    (0.4 + 0.6 * ease, opacity * (1.0 - u) * (1.0 - u))
+}
+
+/// Les anneaux de clic actifs à `t` (secondes source), un `LayerCB` (mode 20) chacun. Le centre
+/// passe par le même plan que le curseur (`cursor_plane_point` + `s_dst`), donc il suit le zoom
+/// (qui vit dans la boîte `s_dst`), le crop (dans `cut`) et le tilt ; la taille suit le zoom
+/// comme le métrage. Un clic hors de la coupe courante ne dessine rien.
+pub fn click_ring_cbs(
+    g: &FrameGeometry,
+    scene: &crate::scene::Scene,
+    render_px: [f32; 2],
+    u_max: f32,
+    v_max: f32,
+    t: f32,
+) -> Vec<LayerCB> {
+    let [rw, rh] = render_px;
+    let s_px = [g.s_dst[2] * rw, g.s_dst[3] * rh];
+    let tilt = g.screen_tilt(s_px);
+    let quad_center_px =
+        [(g.s_dst[0] + g.s_dst[2] * 0.5) * rw, (g.s_dst[1] + g.s_dst[3] * 0.5) * rh];
+    let zoom = if g.s_ann[2] > 1e-6 { (g.s_dst[2] / g.s_ann[2]).max(1.0) } else { 1.0 };
+    let res = rh / 1080.0;
+    let unit = CLICK_RING_DIAMETER_PX / 1080.0 * g.screen_unit_px * g.padding_scale * zoom;
+    let stroke = CLICK_RING_STROKE_PX * res;
+    let sigma = CLICK_RING_GLOW_SIGMA_PX * res;
+    scene
+        .click_regions
+        .iter()
+        .filter(|r| t >= r.start_sec as f32 && t < r.end_sec as f32 && r.end_sec > r.start_sec)
+        .filter_map(|r| {
+            let u = (t - r.start_sec as f32) / (r.end_sec - r.start_sec) as f32;
+            let (scale, alpha) = click_ring_anim(u, r.opacity.clamp(0.0, 1.0));
+            if alpha <= 0.001 {
+                return None;
+            }
+            let [fx, fy] = cursor_plane_point(g.cut, [u_max, v_max], (r.x, r.y))?;
+            let placement = match tilt.as_ref() {
+                Some(&quad) => CursorPlacement::Tilted {
+                    plane_pt: [fx, fy],
+                    quad,
+                    center_px: quad_center_px,
+                    screen_px: s_px,
+                    render_px,
+                },
+                None => CursorPlacement::Upright {
+                    center: [g.s_dst[0] + fx * g.s_dst[2], g.s_dst[1] + fy * g.s_dst[3]],
+                },
+            };
+            let c = placement.upright_center();
+            let radius_final = 0.5 * unit * r.size.max(0.0);
+            let half = radius_final + stroke + 3.0 * sigma;
+            if !(half > 0.0) {
+                return None;
+            }
+            let rgb = parse_hex(&r.color).unwrap_or([1.0, 1.0, 1.0, 1.0]);
+            Some(LayerCB {
+                dst: [c[0] - half / rw, c[1] - half / rh, 2.0 * half / rw, 2.0 * half / rh],
+                src: [radius_final * scale, stroke, alpha, alpha * CLICK_RING_FILL_SHARE],
+                quad_px: [2.0 * half, 2.0 * half],
+                radius_px: 1.0,
+                mode: 20.0,
+                color: [rgb[0], rgb[1], rgb[2], 1.0],
+                fx: [alpha * CLICK_RING_GLOW_ALPHA, sigma, 0.0, 0.0],
+                ..Default::default()
+            })
+        })
+        .collect()
+}
+
 /// L'impact des clics (la bascule `regions::click_impact`, le recul `regions::click_press`) avec
 /// les portes qui dépendent de la scène ; la porte du préset vient ensuite, dans `dynamic_tilt`
 /// pour la bascule, dans `plan_frame` pour le recul.
@@ -4733,11 +4826,31 @@ mod tests {
         assert!(BackgroundKey::of(None, blur, fallback, size).is_some(), "fond de repli");
     }
 
+    #[test]
+    fn click_ring_anim_runs_from_forty_percent_at_peak_opacity_to_full_size_and_nothing() {
+        let (s0, a0) = super::click_ring_anim(0.0, 0.8);
+        assert!((s0 - 0.4).abs() < 1e-6 && (a0 - 0.8).abs() < 1e-6, "{s0} {a0}");
+        let (s1, a1) = super::click_ring_anim(1.0, 0.8);
+        assert!((s1 - 1.0).abs() < 1e-6 && a1.abs() < 1e-6, "{s1} {a1}");
+        // Ease-out : au milieu l'anneau a déjà dépassé la moitié de sa course.
+        let (sm, am) = super::click_ring_anim(0.5, 0.8);
+        assert!(sm > 0.7 && sm < 1.0 && am > 0.0 && am < 0.8, "{sm} {am}");
+        // Hors de 0..1 : borné, jamais d'échelle ni d'opacité négatives.
+        assert_eq!(super::click_ring_anim(-1.0, 0.8), super::click_ring_anim(0.0, 0.8));
+        assert_eq!(super::click_ring_anim(2.0, 0.8), super::click_ring_anim(1.0, 0.8));
+    }
+
+    #[test]
+    fn click_ring_layer_cb_mode_stays_in_the_flat_shader() {
+        let cb = super::LayerCB { mode: 20.0, ..Default::default() };
+        assert!(!cb.needs_models());
+    }
+
     /// Les modèles 3D et le verre à plat qui en reprend les formes, eux seuls, passent par la
     /// variante « modèles » du shader de calque.
     #[test]
     fn only_the_3d_models_need_the_models_shader() {
-        for mode in 0..=19 {
+        for mode in 0..=20 {
             let cb = super::LayerCB { mode: mode as f32, ..Default::default() };
             assert_eq!(cb.needs_models(), (15..=17).contains(&mode) || mode == 19, "mode {mode}");
         }
